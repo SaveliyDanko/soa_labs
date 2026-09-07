@@ -1,0 +1,24 @@
+# Maven build output
+target/
+
+# Runtime data (embedded H2)
+data/
+*.mv.db
+*.trace.db
+
+# IDE metadata
+.idea/
+.vscode/
+.settings/
+.classpath
+.project
+*.iml
+
+# Logs and JVM crash dumps
+*.log
+hs_err_pid*
+replay_pid*
+
+# OS metadata
+.DS_Store
+Thumbs.db

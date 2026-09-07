@@ -1,0 +1,393 @@
+openapi: 3.0.3
+info:
+  title: Study Groups & ISU API
+  version: 1.0.0
+  description: |
+    REST API для управления коллекцией учебных групп.
+
+servers:
+  - url: http://localhost:8080
+    description: Локальный сервер
+tags:
+  - name: Study Groups
+  - name: ISU
+paths:
+  /api/study-groups:
+    post:
+      tags: [Study Groups]
+      summary: Добавить учебную группу
+      description: Создаёт объект, автоматически назначая уникальный id и дату создания.
+      operationId: createStudyGroup
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StudyGroupRequest'
+            example:
+              name: P3110
+              coordinates: {x: 12.5, y: -4.0}
+              studentsCount: 25
+              formOfEducation: FULL_TIME_EDUCATION
+              semesterEnum: THIRD
+              groupAdmin:
+                name: Anna Petrova
+                birthday: '1985-06-20T10:15:30+03:00[Europe/Moscow]'
+                hairColor: GREEN
+                nationality: USA
+                location: {x: 10, y: 20.5, z: -3.0}
+      responses:
+        '201':
+          description: Группа создана, заголовок Location содержит URL нового ресурса.
+          headers:
+            Location:
+              description: URL созданной группы
+              schema: {type: string, format: uri}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/StudyGroup'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '409': {$ref: '#/components/responses/Conflict'}
+    get:
+      tags: [Study Groups]
+      summary: Получить страницу учебных групп
+      description: |
+        Возвращает страницу коллекции. Параметры `sort` и `filter` разрешено
+        повторять, поэтому можно сочетать произвольное количество полей.
+
+        Формат сортировки: `field,asc` или `field,desc`.
+        Формат фильтра: `field:operator:value`. Операторы: `eq`, `ne`, `gt`,
+        `ge`, `lt`, `le`, `contains`; `contains` доступен только строкам.
+
+        Доступные поля: `id`, `name`, `coordinates.x`, `coordinates.y`,
+        `creationDate`, `studentsCount`, `formOfEducation`, `semesterEnum`,
+        `groupAdmin.name`, `groupAdmin.birthday`, `groupAdmin.hairColor`,
+        `groupAdmin.nationality`, `groupAdmin.location.x`,
+        `groupAdmin.location.y`, `groupAdmin.location.z`.
+
+        Даты задаются в ISO 8601. Enum-значения регистрозависимы.
+      operationId: listStudyGroups
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+        - name: sort
+          in: query
+          required: false
+          description: Повторяемое правило сортировки; пример `studentsCount,desc`.
+          style: form
+          explode: true
+          schema:
+            type: array
+            items: {type: string}
+          examples:
+            several:
+              summary: Сначала форма, затем число студентов
+              value: [formOfEducation, 'studentsCount,desc']
+        - name: filter
+          in: query
+          required: false
+          description: Повторяемое условие фильтрации; все условия объединяются логическим AND.
+          style: form
+          explode: true
+          schema:
+            type: array
+            items: {type: string}
+          examples:
+            several:
+              summary: Название содержит Math и студентов не меньше 10
+              value: ['name:contains:Math', 'studentsCount:ge:10']
+      responses:
+        '200':
+          description: Страница групп
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/StudyGroupPage'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+  /api/study-groups/{id}:
+    parameters:
+      - $ref: '#/components/parameters/GroupId'
+    get:
+      tags: [Study Groups]
+      summary: Получить группу по id
+      description: Возвращает единственную учебную группу с указанным идентификатором.
+      operationId: getStudyGroup
+      responses:
+        '200':
+          description: Группа найдена
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/StudyGroup'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '404': {$ref: '#/components/responses/NotFound'}
+    put:
+      tags: [Study Groups]
+      summary: Полностью обновить группу
+      description: Заменяет изменяемые поля группы; id и creationDate сохраняются.
+      operationId: updateStudyGroup
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/StudyGroupRequest'}
+      responses:
+        '200':
+          description: Обновлённая группа
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/StudyGroup'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+    delete:
+      tags: [Study Groups]
+      summary: Удалить группу
+      description: Безвозвратно удаляет учебную группу с указанным id.
+      operationId: deleteStudyGroup
+      responses:
+        '204': {description: Группа удалена}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /api/study-groups/group-admin/max:
+    get:
+      tags: [Study Groups]
+      summary: Найти группу с максимальным администратором
+      description: |
+        Возвращает одну группу, у которой `groupAdmin.name` лексикографически
+        максимально. При равных именах выбирается группа с меньшим id.
+        Группы без администратора не учитываются.
+      operationId: getGroupWithMaxAdmin
+      responses:
+        '200':
+          description: Найденная группа
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/StudyGroup'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /api/study-groups/group-admin/count-greater:
+    get:
+      tags: [Study Groups]
+      summary: Посчитать группы с большим администратором
+      description: Считает группы, где `groupAdmin.name` лексикографически больше переданного имени.
+      operationId: countGroupsWithAdminGreaterThan
+      parameters:
+        - name: adminName
+          in: query
+          required: true
+          description: Имя, с которым сравнивается имя администратора
+          schema: {type: string, minLength: 1}
+          example: Ivan Ivanov
+      responses:
+        '200':
+          description: Результат подсчёта
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CountResult'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+  /api/study-groups/name/contains:
+    get:
+      tags: [Study Groups]
+      summary: Найти группы по подстроке имени
+      description: Возвращает все группы, имя которых содержит подстроку без учёта регистра.
+      operationId: findGroupsByNameSubstring
+      parameters:
+        - name: substring
+          in: query
+          required: true
+          description: Непустая искомая подстрока
+          schema: {type: string, minLength: 1}
+          example: math
+      responses:
+        '200':
+          description: Найденные группы, упорядоченные по id
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/StudyGroup'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+  /isu/group/{groupId}/expel-all:
+    post:
+      tags: [ISU]
+      summary: Отчислить всех студентов группы
+      description: |
+        Сервис ISU вызывает DELETE сервиса Study Groups. После отчисления
+        последнего студента пустая группа удаляется, поскольку допустимый
+        StudyGroup обязан иметь `studentsCount > 0`.
+      operationId: expelAllStudents
+      parameters:
+        - $ref: '#/components/parameters/IsuGroupId'
+      responses:
+        '204': {description: Все студенты отчислены, группа удалена}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '502': {$ref: '#/components/responses/BadGateway'}
+  /isu/group/{groupId}/change-edu-form/{newForm}:
+    post:
+      tags: [ISU]
+      summary: Сменить форму обучения группы
+      description: Сервис ISU получает группу из сервиса Study Groups и отправляет её обновление с новой формой обучения.
+      operationId: changeEducationForm
+      parameters:
+        - $ref: '#/components/parameters/IsuGroupId'
+        - name: newForm
+          in: path
+          required: true
+          description: Новая форма обучения
+          schema: {$ref: '#/components/schemas/FormOfEducation'}
+      responses:
+        '200':
+          description: Группа с изменённой формой обучения
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/StudyGroup'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '502': {$ref: '#/components/responses/BadGateway'}
+components:
+  parameters:
+    GroupId:
+      name: id
+      in: path
+      required: true
+      description: Идентификатор группы
+      schema: {type: integer, format: int32, minimum: 1}
+    IsuGroupId:
+      name: groupId
+      in: path
+      required: true
+      description: Идентификатор группы
+      schema: {type: integer, format: int32, minimum: 1}
+    Page:
+      name: page
+      in: query
+      required: false
+      description: Номер страницы, начиная с 0
+      schema: {type: integer, minimum: 0, default: 0}
+    Size:
+      name: size
+      in: query
+      required: false
+      description: Число элементов на странице
+      schema: {type: integer, minimum: 1, maximum: 100, default: 20}
+  responses:
+    BadRequest:
+      description: Некорректный JSON, параметр или нарушение ограничений модели
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+    NotFound:
+      description: Группа не найдена
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+    Conflict:
+      description: Нарушено ограничение целостности
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+    BadGateway:
+      description: Сервис Study Groups недоступен или вернул неожиданный ответ
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+  schemas:
+    FormOfEducation:
+      type: string
+      enum: [DISTANCE_EDUCATION, FULL_TIME_EDUCATION, EVENING_CLASSES]
+    Semester:
+      type: string
+      nullable: true
+      enum: [SECOND, THIRD, SEVENTH, EIGHTH]
+    Color:
+      type: string
+      nullable: true
+      enum: [GREEN, YELLOW, ORANGE]
+    Country:
+      type: string
+      enum: [USA, CHINA, VATICAN, SOUTH_KOREA, NORTH_KOREA]
+    Coordinates:
+      type: object
+      additionalProperties: false
+      required: [x, y]
+      properties:
+        x: {type: number, format: float}
+        y: {type: number, format: float}
+    Location:
+      type: object
+      additionalProperties: false
+      required: [x, y, z]
+      properties:
+        x: {type: integer, format: int64}
+        y: {type: number, format: double}
+        z: {type: number, format: double}
+    Person:
+      type: object
+      nullable: true
+      additionalProperties: false
+      required: [name, nationality]
+      properties:
+        name: {type: string, minLength: 1}
+        birthday:
+          type: string
+          format: date-time
+          nullable: true
+        hairColor: {$ref: '#/components/schemas/Color'}
+        nationality: {$ref: '#/components/schemas/Country'}
+        location:
+          allOf:
+            - {$ref: '#/components/schemas/Location'}
+          nullable: true
+    StudyGroupRequest:
+      type: object
+      additionalProperties: false
+      required: [name, coordinates, studentsCount, formOfEducation]
+      properties:
+        name: {type: string, minLength: 1}
+        coordinates: {$ref: '#/components/schemas/Coordinates'}
+        studentsCount: {type: integer, format: int64, minimum: 1}
+        formOfEducation: {$ref: '#/components/schemas/FormOfEducation'}
+        semesterEnum: {$ref: '#/components/schemas/Semester'}
+        groupAdmin: {$ref: '#/components/schemas/Person'}
+    StudyGroup:
+      allOf:
+        - $ref: '#/components/schemas/StudyGroupRequest'
+        - type: object
+          required: [id, creationDate]
+          properties:
+            id:
+              type: integer
+              format: int32
+              minimum: 1
+              readOnly: true
+            creationDate:
+              type: string
+              format: date-time
+              readOnly: true
+    StudyGroupPage:
+      type: object
+      required: [content, page, size, totalElements, totalPages]
+      properties:
+        content:
+          type: array
+          items: {$ref: '#/components/schemas/StudyGroup'}
+        page: {type: integer, minimum: 0}
+        size: {type: integer, minimum: 1, maximum: 100}
+        totalElements: {type: integer, format: int64, minimum: 0}
+        totalPages: {type: integer, minimum: 0}
+    CountResult:
+      type: object
+      required: [count]
+      properties:
+        count: {type: integer, format: int64, minimum: 0}
+    Error:
+      type: object
+      required: [timestamp, status, error, message, path, violations]
+      properties:
+        timestamp: {type: string, format: date-time}
+        status: {type: integer}
+        error: {type: string}
+        message: {type: string}
+        path: {type: string}
+        violations:
+          type: object
+          additionalProperties: {type: string}
