@@ -12,6 +12,7 @@ import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.header
@@ -31,6 +32,18 @@ class StudyGroupApiIntegrationTest {
 
     @BeforeEach
     fun clean() = repository.deleteAll()
+
+    @Test
+    fun `accepts CORS preflight requests`() {
+        mvc.perform(
+            options("/api/study-groups")
+                .header("Origin", "https://client.example")
+                .header("Access-Control-Request-Method", "POST"),
+        )
+            .andExpect(status().isOk)
+            .andExpect(header().string("Access-Control-Allow-Origin", "https://client.example"))
+            .andExpect(header().string("Access-Control-Allow-Credentials", "true"))
+    }
 
     @Test
     fun `supports CRUD and validation`() {
