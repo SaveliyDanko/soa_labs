@@ -11,7 +11,6 @@ mvn clean package
 ssh -p 2222 s408145@helios.cs.ifmo.ru 'mkdir -p ~/soa-lab1/data'
 
 ```bash
-
 scp -P 2222 target/study-groups-service-1.0.0.jar s408145@helios.cs.ifmo.ru:~/soa-lab1/application.jar
 ```
 
@@ -19,9 +18,14 @@ scp -P 2222 target/study-groups-service-1.0.0.jar s408145@helios.cs.ifmo.ru:~/so
 
 ```bash
 ssh -p 2222 s408145@helios.cs.ifmo.ru
-cd ~/soa-lab1
+```
 
-java -jar study-groups-service-1.0.0.jar --spring.profiles.active=server 
+```bash
+cd ~/soa-lab1
+```
+
+```bash
+java -jar application.jar --spring.profiles.active=server 
 ```
 
 На сервере должна быть установлена Java 17 или новее (`java -version`).

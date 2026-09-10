@@ -6,7 +6,7 @@ info:
     REST API для управления коллекцией учебных групп.
 
 servers:
-  - url: http://localhost:8080
+  - url: /
     description: Локальный сервер
 tags:
   - name: Study Groups
