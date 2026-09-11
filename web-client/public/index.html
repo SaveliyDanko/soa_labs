@@ -3,134 +3,197 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="color-scheme" content="light">
+    <meta name="theme-color" content="#11182a">
+    <meta name="description" content="Панель управления учебными группами и операциями ИСУ">
     <title>Study Groups — панель управления</title>
-    <link rel="stylesheet" href="styles.css">
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="stylesheet" href="styles.css?v=3">
 </head>
 <body>
-<header class="hero">
-    <div>
-        <p class="eyebrow">Сервис-ориентированная архитектура</p>
-        <h1>Учебные группы</h1>
-        <p>Коллекция StudyGroup и составные операции ИСУ в одном интерфейсе.</p>
+<header class="app-bar">
+    <a class="brand" href="/" aria-label="Study Groups — главная">
+        <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" role="img"><path d="M4 7.5 12 3l8 4.5-8 4.5-8-4.5Zm3 2.2V15c0 1.5 2.2 3 5 3s5-1.5 5-3V9.7l-5 2.8-5-2.8Zm12 .9v5"/></svg>
+        </span>
+        <span class="brand-copy"><small>SOA LAB</small><strong>Study Groups</strong></span>
+    </a>
+    <div class="app-bar-actions">
+        <div class="service-labels" aria-label="Сервисы приложения">
+            <span><i class="service-dot payara"></i>Payara</span>
+            <span><i class="service-dot wildfly"></i>WildFly</span>
+        </div>
+        <a class="docs-link" href="/swagger-ui.html" target="_blank" rel="noreferrer">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 5h5v5M19 5l-8 8M19 13v5a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"/></svg>
+            API Docs
+        </a>
     </div>
-    <a class="docs-link" href="/swagger-ui.html" target="_blank" rel="noreferrer">Открыть Swagger UI ↗</a>
 </header>
 
-<main>
-    <section id="notice" class="notice" hidden aria-live="polite"></section>
+<main class="app-shell">
+    <section id="notice" class="notice" hidden aria-live="polite" role="status"></section>
 
-    <section class="panel collection-panel">
+    <section class="workspace-heading" aria-labelledby="page-title">
+        <div>
+            <p class="eyebrow">Первый сервис · Payara</p>
+            <h1 id="page-title">Учебные группы</h1>
+            <p class="page-description">Управляйте коллекцией, находите нужные записи и выполняйте операции ИСУ.</p>
+        </div>
+        <button id="new-group" class="primary create-button" type="button">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+            Новая группа
+        </button>
+    </section>
+
+    <section class="metrics" aria-label="Сводка коллекции">
+        <article class="metric-card metric-primary">
+            <span class="metric-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 7.5 12 3l8 4.5-8 4.5-8-4.5ZM7 10v5c0 1.5 2.2 3 5 3s5-1.5 5-3v-5"/></svg></span>
+            <div><span>Всего групп</span><strong id="metric-total">—</strong></div>
+        </article>
+        <article class="metric-card">
+            <span class="metric-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h10M4 18h7"/></svg></span>
+            <div><span>На странице</span><strong id="metric-visible">—</strong></div>
+        </article>
+        <article class="metric-card">
+            <span class="metric-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 4h10a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Zm-2 5h14M9 4v5"/></svg></span>
+            <div><span>Текущая страница</span><strong id="metric-page">—</strong></div>
+        </article>
+    </section>
+
+    <section class="panel collection-panel" aria-labelledby="collection-title">
         <div class="panel-heading">
             <div>
-                <p class="eyebrow">Первый сервис · Payara</p>
-                <h2>Коллекция</h2>
+                <h2 id="collection-title">Список групп</h2>
+                <p id="collection-status" class="panel-description">Загрузка данных…</p>
             </div>
-            <button id="new-group" class="primary">+ Новая группа</button>
+            <span class="api-badge"><i></i> REST API</span>
         </div>
 
-        <form id="query-form" class="query-grid">
-            <label>Страница
-                <input id="page" type="number" min="0" value="0">
-            </label>
-            <label>Размер
-                <input id="size" type="number" min="1" max="100" value="10">
-            </label>
-            <label class="wide">Сортировка <span>по правилу на строку: field,asc|desc</span>
-                <textarea id="sort" rows="2" placeholder="formOfEducation,asc&#10;studentsCount,desc">id,asc</textarea>
-            </label>
-            <label class="wide">Фильтры <span>по условию на строку: field:operator:value</span>
-                <textarea id="filter" rows="2" placeholder="name:contains:math&#10;studentsCount:ge:10"></textarea>
-            </label>
-            <div class="query-actions">
-                <button type="submit" class="primary">Применить</button>
-                <button id="reset-query" type="button">Сбросить</button>
+        <div class="query-shell">
+            <div class="query-heading">
+                <span class="query-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 6h16M7 12h10M10 18h4"/></svg></span>
+                <div><strong>Настройка выборки</strong><span>Пагинация, сортировка и фильтры API</span></div>
             </div>
-        </form>
+            <form id="query-form" class="query-grid">
+                <label>Страница
+                    <input id="page" type="number" min="0" value="0" inputmode="numeric">
+                </label>
+                <label>Размер
+                    <input id="size" type="number" min="1" max="100" value="10" inputmode="numeric">
+                </label>
+                <label class="wide">Сортировка <span>Одно правило на строку: field,asc|desc</span>
+                    <textarea id="sort" rows="2" placeholder="formOfEducation,asc&#10;studentsCount,desc">id,asc</textarea>
+                </label>
+                <label class="wide">Фильтры <span>Одно условие на строку: field:operator:value</span>
+                    <textarea id="filter" rows="2" placeholder="name:contains:math&#10;studentsCount:ge:10"></textarea>
+                </label>
+                <div class="query-actions">
+                    <button type="submit" class="primary">Применить</button>
+                    <button id="reset-query" type="button" class="ghost-button">Сбросить</button>
+                </div>
+            </form>
+        </div>
 
-        <div class="table-wrap">
+        <div class="table-wrap" id="collection-table" aria-busy="true">
             <table>
-                <thead><tr><th>ID</th><th>Группа</th><th>Координаты</th><th>Студенты</th><th>Обучение</th><th>Администратор</th><th>Создана</th><th></th></tr></thead>
+                <thead><tr><th>ID</th><th>Группа</th><th>Координаты</th><th>Студенты</th><th>Обучение</th><th>Администратор</th><th>Создана</th><th><span class="sr-only">Действия</span></th></tr></thead>
                 <tbody id="groups-body"></tbody>
             </table>
         </div>
         <div class="pager">
-            <button id="previous-page" type="button">← Назад</button>
+            <button id="previous-page" type="button" aria-label="Предыдущая страница"><span aria-hidden="true">←</span> Назад</button>
             <span id="page-summary">—</span>
-            <button id="next-page" type="button">Вперёд →</button>
+            <button id="next-page" type="button" aria-label="Следующая страница">Вперёд <span aria-hidden="true">→</span></button>
         </div>
     </section>
 
-    <section class="operations-grid">
-        <article class="panel">
-            <p class="eyebrow">Операции коллекции</p>
-            <h2>Специальные запросы</h2>
-            <div class="stack">
-                <form id="get-by-id-form" class="inline-form">
-                    <input id="lookup-id" type="number" min="1" required placeholder="ID группы">
-                    <button type="submit">Получить по ID</button>
-                </form>
-                <button id="max-admin" type="button">Группа с максимальным администратором</button>
-                <form id="count-admin-form" class="inline-form">
-                    <input id="admin-name" required placeholder="Имя администратора">
-                    <button type="submit">Посчитать имена больше</button>
-                </form>
-                <form id="contains-form" class="inline-form">
-                    <input id="substring" required placeholder="Подстрока названия">
-                    <button type="submit">Найти группы</button>
-                </form>
-            </div>
-            <div id="special-result" class="result-box muted">Результат появится здесь.</div>
-        </article>
-
-        <article class="panel accent-panel">
-            <p class="eyebrow">Второй сервис · WildFly</p>
-            <h2>Операции ИСУ</h2>
-            <form id="isu-form" class="stack">
-                <label>ID группы<input id="isu-group-id" type="number" min="1" required></label>
-                <label>Новая форма обучения
-                    <select id="isu-form-value">
-                        <option>DISTANCE_EDUCATION</option>
-                        <option>FULL_TIME_EDUCATION</option>
-                        <option>EVENING_CLASSES</option>
-                    </select>
-                </label>
-                <div class="button-row">
-                    <button id="change-form" type="submit" class="primary">Сменить форму</button>
-                    <button id="expel-all" type="button" class="danger">Отчислить всех</button>
+    <section class="operations-section" aria-labelledby="operations-title">
+        <div class="section-heading">
+            <div><p class="eyebrow">Инструменты API</p><h2 id="operations-title">Специальные операции</h2></div>
+            <p>Запросы к коллекции и составные операции второго сервиса.</p>
+        </div>
+        <div class="operations-grid">
+            <article class="panel operation-panel">
+                <div class="operation-heading">
+                    <span class="operation-mark payara-mark">P</span>
+                    <div><p class="eyebrow">Payara</p><h3>Операции коллекции</h3></div>
                 </div>
-            </form>
-            <div id="isu-result" class="result-box muted">Результат операции появится здесь.</div>
-        </article>
+                <div class="stack">
+                    <form id="get-by-id-form" class="inline-form">
+                        <label class="sr-only" for="lookup-id">ID группы</label>
+                        <input id="lookup-id" type="number" min="1" required placeholder="ID группы">
+                        <button type="submit">Получить</button>
+                    </form>
+                    <button id="max-admin" type="button">Группа с максимальным администратором</button>
+                    <form id="count-admin-form" class="inline-form">
+                        <label class="sr-only" for="admin-name">Имя администратора</label>
+                        <input id="admin-name" required placeholder="Имя администратора">
+                        <button type="submit">Посчитать имена больше</button>
+                    </form>
+                    <form id="contains-form" class="inline-form">
+                        <label class="sr-only" for="substring">Подстрока названия</label>
+                        <input id="substring" required placeholder="Подстрока названия">
+                        <button type="submit">Найти группы</button>
+                    </form>
+                </div>
+                <div id="special-result" class="result-box muted" aria-live="polite">Результат появится здесь.</div>
+            </article>
+
+            <article class="panel operation-panel wildfly-panel">
+                <div class="operation-heading">
+                    <span class="operation-mark wildfly-mark">W</span>
+                    <div><p class="eyebrow">WildFly</p><h3>Операции ИСУ</h3></div>
+                </div>
+                <form id="isu-form" class="stack">
+                    <label>ID группы<input id="isu-group-id" type="number" min="1" required placeholder="Например, 42"></label>
+                    <label>Новая форма обучения
+                        <select id="isu-form-value">
+                            <option value="DISTANCE_EDUCATION">Дистанционная</option>
+                            <option value="FULL_TIME_EDUCATION">Очная</option>
+                            <option value="EVENING_CLASSES">Вечерняя</option>
+                        </select>
+                    </label>
+                    <div class="button-row">
+                        <button id="change-form" type="submit" class="primary">Сменить форму</button>
+                        <button id="expel-all" type="button" class="danger">Отчислить всех</button>
+                    </div>
+                </form>
+                <div id="isu-result" class="result-box muted" aria-live="polite">Результат операции появится здесь.</div>
+            </article>
+        </div>
     </section>
 </main>
 
-<dialog id="group-dialog">
+<dialog id="group-dialog" aria-labelledby="dialog-title">
     <form id="group-form" method="dialog">
+        <input id="edit-id" type="hidden">
         <div class="dialog-heading">
             <div><p class="eyebrow">StudyGroup</p><h2 id="dialog-title">Новая группа</h2></div>
             <button id="close-dialog" type="button" class="icon-button" aria-label="Закрыть">×</button>
         </div>
-        <input id="edit-id" type="hidden">
-        <div class="form-grid">
-            <label class="wide">Название<input id="group-name" required></label>
-            <label>X<input id="coordinate-x" type="number" step="any" required></label>
-            <label>Y<input id="coordinate-y" type="number" step="any" required></label>
-            <label>Количество студентов<input id="students-count" type="number" min="1" required></label>
-            <label>Форма обучения<select id="education-form" required></select></label>
-            <label>Семестр<select id="semester"><option value="">Не указан</option></select></label>
-        </div>
+        <p class="dialog-description">Заполните основные данные. ID и дата создания будут назначены автоматически.</p>
 
-        <label class="switch"><input id="has-admin" type="checkbox"> Указать администратора группы</label>
-        <fieldset id="admin-fields" disabled>
+        <fieldset class="form-section">
+            <legend>Основные данные</legend>
+            <div class="form-grid">
+                <label class="wide">Название<input id="group-name" required placeholder="Например, P3110"></label>
+                <label>Координата X<input id="coordinate-x" type="number" step="any" required placeholder="0"></label>
+                <label>Координата Y<input id="coordinate-y" type="number" step="any" required placeholder="0"></label>
+                <label>Количество студентов<input id="students-count" type="number" min="1" required placeholder="25"></label>
+                <label>Форма обучения<select id="education-form" required></select></label>
+                <label>Семестр<select id="semester"><option value="">Не указан</option></select></label>
+            </div>
+        </fieldset>
+
+        <label class="switch-row"><span><strong>Администратор группы</strong><small>Добавить сведения о кураторе</small></span><input id="has-admin" type="checkbox" role="switch"></label>
+        <fieldset id="admin-fields" class="form-section" disabled>
             <legend>Администратор</legend>
             <div class="form-grid">
-                <label class="wide">Имя<input id="person-name"></label>
-                <label class="wide">Дата рождения (ISO 8601)<input id="birthday" placeholder="1985-06-20T10:15:30+03:00[Europe/Moscow]"></label>
+                <label class="wide">Имя<input id="person-name" placeholder="Имя администратора"></label>
+                <label class="wide">Дата рождения <span>ISO 8601</span><input id="birthday" placeholder="1985-06-20T10:15:30+03:00[Europe/Moscow]"></label>
                 <label>Цвет волос<select id="hair-color"><option value="">Не указан</option></select></label>
                 <label>Гражданство<select id="nationality"></select></label>
             </div>
-            <label class="switch"><input id="has-location" type="checkbox"> Указать местоположение</label>
+            <label class="switch-row nested-switch"><span><strong>Местоположение</strong><small>Указать координаты администратора</small></span><input id="has-location" type="checkbox" role="switch"></label>
             <div id="location-fields" class="form-grid" aria-disabled="true">
                 <label>Location X<input id="location-x" type="number" step="1" disabled></label>
                 <label>Location Y<input id="location-y" type="number" step="any" disabled></label>
@@ -138,12 +201,12 @@
             </div>
         </fieldset>
         <div class="dialog-actions">
-            <button id="cancel-dialog" type="button">Отмена</button>
-            <button type="submit" class="primary">Сохранить</button>
+            <button id="cancel-dialog" type="button" class="ghost-button">Отмена</button>
+            <button type="submit" class="primary">Сохранить группу</button>
         </div>
     </form>
 </dialog>
 
-<script src="app.js" defer></script>
+    <script src="app.js?v=3" defer></script>
 </body>
 </html>
