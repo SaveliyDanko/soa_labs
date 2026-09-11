@@ -45,14 +45,30 @@ object StudyGroupSpecifications {
     private fun parse(raw: String): Specification<StudyGroup> {
         val parts = raw.split(":", limit = 3)
         if (parts.size != 3 || parts[2].isBlank()) {
-            throw InvalidQueryException("Фильтр должен иметь формат field:operator:value: $raw")
+            throw InvalidQueryException(
+                "INVALID_FILTER_FORMAT",
+                "Фильтр должен иметь формат field:operator:value",
+                mapOf("filter" to raw),
+            )
         }
         val field = parts[0]
         val operator = parts[1].lowercase(Locale.ROOT)
-        val type = fields[field] ?: throw InvalidQueryException("Неизвестное поле фильтрации: $field")
-        if (operator !in operators) throw InvalidQueryException("Неизвестный оператор фильтрации: $operator")
+        val type = fields[field] ?: throw InvalidQueryException(
+            "INVALID_FILTER_FIELD",
+            "Неизвестное поле фильтрации: $field",
+            mapOf("field" to field),
+        )
+        if (operator !in operators) throw InvalidQueryException(
+            "INVALID_FILTER_OPERATOR",
+            "Неизвестный оператор фильтрации: $operator",
+            mapOf("operator" to operator),
+        )
         if (operator == "contains" && type != String::class.java) {
-            throw InvalidQueryException("Оператор contains применим только к строкам")
+            throw InvalidQueryException(
+                "INVALID_FILTER_OPERATOR",
+                "Оператор contains применим только к строкам",
+                mapOf("field" to field, "operator" to operator),
+            )
         }
         val value = convert(parts[2], type)
         return Specification { root, _, cb -> predicate(resolvePath(root, field), operator, value, cb) }
@@ -76,7 +92,7 @@ object StudyGroupSpecifications {
                 cb.lower(path.`as`(String::class.java)),
                 "%${value.toString().lowercase(Locale.ROOT)}%",
             )
-            else -> throw InvalidQueryException("Неизвестный оператор фильтрации: $operator")
+            else -> throw InvalidQueryException("INVALID_FILTER_OPERATOR", "Неизвестный оператор: $operator")
         }
     }
 
@@ -93,13 +109,18 @@ object StudyGroupSpecifications {
             Semester::class.java -> Semester.valueOf(value)
             Color::class.java -> Color.valueOf(value)
             Country::class.java -> Country.valueOf(value)
-            else -> throw InvalidQueryException("Неподдерживаемый тип фильтра: ${type.simpleName}")
+            else -> throw InvalidQueryException(
+                "UNSUPPORTED_FILTER_TYPE",
+                "Неподдерживаемый тип фильтра: ${type.simpleName}",
+            )
         }
     } catch (exception: InvalidQueryException) {
         throw exception
     } catch (exception: RuntimeException) {
         throw InvalidQueryException(
+            "INVALID_FILTER_VALUE",
             "Некорректное значение '$value' для поля типа ${type.simpleName}",
+            mapOf("value" to value, "expectedType" to type.simpleName),
             exception,
         )
     }

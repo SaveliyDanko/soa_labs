@@ -49,7 +49,7 @@ class StudyGroupService(
             hasAdmin,
             PageRequest.of(0, 1, Sort.by(Sort.Order.desc("groupAdmin.name"), Sort.Order.asc("id"))),
         ).firstOrNull()?.let(mapper::toResponse)
-            ?: throw NotFoundException("Нет групп с назначенным администратором")
+            ?: throw NotFoundException("NO_GROUP_WITH_ADMIN", "Нет групп с назначенным администратором")
     }
 
     fun countAdminGreaterThan(adminName: String): Long {
@@ -67,7 +67,13 @@ class StudyGroupService(
     }
 
     private fun find(id: Int): StudyGroup = repository.findById(id)
-        .orElseThrow { NotFoundException("Учебная группа с id=$id не найдена") }
+        .orElseThrow {
+            NotFoundException(
+                "STUDY_GROUP_NOT_FOUND",
+                "Учебная группа с id=$id не найдена",
+                mapOf("id" to id.toString()),
+            )
+        }
 
     private fun parseSort(values: List<String>?): Sort {
         if (values.isNullOrEmpty()) return Sort.by("id").ascending()
@@ -75,11 +81,19 @@ class StudyGroupService(
             val parts = value.split(',', limit = 3)
             val field = parts[0]
             if (field !in StudyGroupSpecifications.fields) {
-                throw InvalidQueryException("Неизвестное поле сортировки: $field")
+                throw InvalidQueryException(
+                    "INVALID_SORT_FIELD",
+                    "Неизвестное поле сортировки: $field",
+                    mapOf("field" to field),
+                )
             }
             if (parts.size > 2 || (parts.size == 2 &&
                         !parts[1].equals("asc", true) && !parts[1].equals("desc", true))) {
-                throw InvalidQueryException("Сортировка должна иметь формат field,asc или field,desc: $value")
+                throw InvalidQueryException(
+                    "INVALID_SORT_FORMAT",
+                    "Сортировка должна иметь формат field,asc или field,desc",
+                    mapOf("sort" to value),
+                )
             }
             val direction = if (parts.size == 1) Sort.Direction.ASC else Sort.Direction.fromString(parts[1])
             Sort.Order(direction, field)

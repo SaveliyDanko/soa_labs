@@ -68,11 +68,32 @@ data class PageResponse<T>(
     val totalPages: Int,
 )
 
-data class ErrorResponse(
+data class ApiErrorResponse(
     val timestamp: Instant,
     val status: Int,
-    val error: String,
+    val code: String,
+    val message: String,
+    val path: String,
+    val details: Map<String, String>? = null,
+)
+
+data class ValidationErrorResponse(
+    val timestamp: Instant,
+    val status: Int,
+    val code: String,
     val message: String,
     val path: String,
     val violations: Map<String, String>,
+)
+
+data class ActionResponse(
+    val code: String,
+    val message: String,
+    val resourceId: Int,
+)
+
+data class CountResponse(
+    val count: Long,
+    val comparedBy: String,
+    val greaterThan: String,
 )

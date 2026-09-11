@@ -2,6 +2,7 @@ package ru.itmo.soa.isu
 
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
+import org.springframework.http.HttpStatus
 import ru.itmo.soa.api.dto.CoordinatesDto
 import ru.itmo.soa.api.dto.StudyGroupRequest
 import ru.itmo.soa.api.dto.StudyGroupResponse
@@ -16,6 +17,15 @@ class IsuServiceTest {
     fun `expel all deletes group through first service`() {
         service.expelAll(42)
         assertEquals(42, client.deletedId)
+    }
+
+    @Test
+    fun `expel endpoint returns action result`() {
+        val response = IsuController(service).expelAll(42)
+
+        assertEquals(HttpStatus.OK, response.statusCode)
+        assertEquals("ALL_STUDENTS_EXPELLED", response.body?.code)
+        assertEquals(42, response.body?.resourceId)
     }
 
     @Test

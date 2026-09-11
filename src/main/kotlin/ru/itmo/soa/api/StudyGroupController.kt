@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder
 import ru.itmo.soa.api.dto.PageResponse
+import ru.itmo.soa.api.dto.CountResponse
 import ru.itmo.soa.api.dto.StudyGroupRequest
 import ru.itmo.soa.api.dto.StudyGroupResponse
 import ru.itmo.soa.service.StudyGroupService
@@ -62,8 +63,11 @@ class StudyGroupController(private val service: StudyGroupService) {
     fun maxAdmin(): StudyGroupResponse = service.maxAdmin()
 
     @GetMapping("/group-admin/count-greater")
-    fun countAdminGreaterThan(@RequestParam @NotBlank adminName: String): Map<String, Long> =
-        mapOf("count" to service.countAdminGreaterThan(adminName))
+    fun countAdminGreaterThan(@RequestParam @NotBlank adminName: String) = CountResponse(
+        count = service.countAdminGreaterThan(adminName),
+        comparedBy = "groupAdmin.name",
+        greaterThan = adminName,
+    )
 
     @GetMapping("/name/contains")
     fun nameContains(@RequestParam @NotBlank substring: String): List<StudyGroupResponse> =

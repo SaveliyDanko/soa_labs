@@ -5,6 +5,7 @@ import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Component
 import org.springframework.web.client.RestClient
 import org.springframework.web.client.RestClientResponseException
+import org.springframework.web.client.ResourceAccessException
 import ru.itmo.soa.api.dto.StudyGroupRequest
 import ru.itmo.soa.api.dto.StudyGroupResponse
 import ru.itmo.soa.service.UpstreamServiceException
@@ -38,12 +39,42 @@ class HttpStudyGroupsClient(
 
     private fun <T> execute(action: () -> T): T = try {
         action()
+    } catch (exception: UpstreamServiceException) {
+        throw exception
     } catch (exception: RestClientResponseException) {
+        val status = HttpStatus.resolve(exception.statusCode.value())
+        if (status == HttpStatus.NOT_FOUND) {
+            throw UpstreamServiceException(
+                HttpStatus.NOT_FOUND,
+                "STUDY_GROUP_NOT_FOUND",
+                "Сервис Study Groups не нашёл указанную группу",
+            )
+        }
+        if (status != null && status.is4xxClientError) {
+            throw UpstreamServiceException(
+                status,
+                "UPSTREAM_REQUEST_REJECTED",
+                "Сервис Study Groups отклонил запрос",
+                mapOf("upstreamStatus" to status.value().toString()),
+            )
+        }
         throw UpstreamServiceException(
-            HttpStatus.resolve(exception.statusCode.value()) ?: HttpStatus.BAD_GATEWAY,
-            "Первый сервис отклонил операцию: HTTP ${exception.statusCode.value()}",
+            HttpStatus.BAD_GATEWAY,
+            "UPSTREAM_BAD_RESPONSE",
+            "Сервис Study Groups вернул ошибочный ответ",
+            mapOf("upstreamStatus" to exception.statusCode.value().toString()),
+        )
+    } catch (exception: ResourceAccessException) {
+        throw UpstreamServiceException(
+            HttpStatus.SERVICE_UNAVAILABLE,
+            "STUDY_GROUPS_SERVICE_UNAVAILABLE",
+            "Сервис Study Groups временно недоступен",
         )
     } catch (exception: RuntimeException) {
-        throw UpstreamServiceException(HttpStatus.BAD_GATEWAY, "Первый сервис недоступен")
+        throw UpstreamServiceException(
+            HttpStatus.BAD_GATEWAY,
+            "UPSTREAM_BAD_RESPONSE",
+            "Не удалось обработать ответ сервиса Study Groups",
+        )
     }
 }

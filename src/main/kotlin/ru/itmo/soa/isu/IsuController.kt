@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 import ru.itmo.soa.api.dto.StudyGroupResponse
+import ru.itmo.soa.api.dto.ActionResponse
 import ru.itmo.soa.domain.FormOfEducation
 
 @Validated
@@ -15,9 +16,15 @@ import ru.itmo.soa.domain.FormOfEducation
 @RequestMapping("/isu")
 class IsuController(private val service: IsuService) {
     @PostMapping("/group/{groupId}/expel-all")
-    fun expelAll(@PathVariable @Positive groupId: Int): ResponseEntity<Void> {
+    fun expelAll(@PathVariable @Positive groupId: Int): ResponseEntity<ActionResponse> {
         service.expelAll(groupId)
-        return ResponseEntity.noContent().build()
+        return ResponseEntity.ok(
+            ActionResponse(
+                code = "ALL_STUDENTS_EXPELLED",
+                message = "Все студенты отчислены; пустая группа удалена",
+                resourceId = groupId,
+            ),
+        )
     }
 
     @PostMapping("/group/{groupId}/change-edu-form/{newForm}")

@@ -2,14 +2,22 @@ package ru.itmo.soa.service
 
 import org.springframework.http.HttpStatus
 
-class NotFoundException(message: String) : RuntimeException(message)
+class NotFoundException(
+    val code: String,
+    message: String,
+    val details: Map<String, String> = emptyMap(),
+) : RuntimeException(message)
 
-class InvalidQueryException : RuntimeException {
-    constructor(message: String) : super(message)
-    constructor(message: String, cause: Throwable) : super(message, cause)
-}
+class InvalidQueryException(
+    val code: String,
+    message: String,
+    val details: Map<String, String> = emptyMap(),
+    cause: Throwable? = null,
+) : RuntimeException(message, cause)
 
 class UpstreamServiceException(
     val status: HttpStatus,
+    val code: String,
     message: String,
+    val details: Map<String, String> = emptyMap(),
 ) : RuntimeException(message)

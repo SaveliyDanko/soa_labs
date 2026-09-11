@@ -75,11 +75,14 @@ class StudyGroupApiIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(group("invalid", 0, "Admin")),
         )
-            .andExpect(status().isBadRequest)
+            .andExpect(status().isUnprocessableEntity)
+            .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
             .andExpect(jsonPath("$.violations.studentsCount").exists())
 
         mvc.perform(delete(location)).andExpect(status().isNoContent)
-        mvc.perform(get(location)).andExpect(status().isNotFound)
+        mvc.perform(get(location))
+            .andExpect(status().isNotFound)
+            .andExpect(jsonPath("$.code").value("STUDY_GROUP_NOT_FOUND"))
     }
 
     @Test
@@ -107,6 +110,8 @@ class StudyGroupApiIntegrationTest {
         mvc.perform(get("/api/study-groups/group-admin/count-greater").param("adminName", "Mike"))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.count").value(1))
+            .andExpect(jsonPath("$.comparedBy").value("groupAdmin.name"))
+            .andExpect(jsonPath("$.greaterThan").value("Mike"))
 
         mvc.perform(get("/api/study-groups/name/contains").param("substring", "math"))
             .andExpect(status().isOk)
@@ -114,6 +119,46 @@ class StudyGroupApiIntegrationTest {
 
         mvc.perform(get("/api/study-groups").param("filter", "unknown:eq:value"))
             .andExpect(status().isBadRequest)
+            .andExpect(jsonPath("$.code").value("INVALID_FILTER_FIELD"))
+            .andExpect(jsonPath("$.details.field").value("unknown"))
+    }
+
+    @Test
+    fun `uses distinct statuses and error bodies`() {
+        mvc.perform(get("/api/study-groups/abc"))
+            .andExpect(status().isBadRequest)
+            .andExpect(jsonPath("$.code").value("INVALID_PARAMETER_TYPE"))
+            .andExpect(jsonPath("$.details.parameter").value("id"))
+
+        mvc.perform(get("/api/study-groups/999999"))
+            .andExpect(status().isNotFound)
+            .andExpect(jsonPath("$.code").value("STUDY_GROUP_NOT_FOUND"))
+            .andExpect(jsonPath("$.details.id").value("999999"))
+
+        mvc.perform(get("/api/study-groups").param("page", "-1"))
+            .andExpect(status().isBadRequest)
+            .andExpect(jsonPath("$.code").value("INVALID_PARAMETER_VALUE"))
+            .andExpect(jsonPath("$.violations.page").exists())
+
+        mvc.perform(
+            post("/api/study-groups")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{not-json}"),
+        )
+            .andExpect(status().isBadRequest)
+            .andExpect(jsonPath("$.code").value("MALFORMED_JSON"))
+
+        mvc.perform(
+            post("/api/study-groups")
+                .contentType(MediaType.TEXT_PLAIN)
+                .content("not-json"),
+        )
+            .andExpect(status().isUnsupportedMediaType)
+            .andExpect(jsonPath("$.code").value("UNSUPPORTED_MEDIA_TYPE"))
+
+        mvc.perform(get("/api/study-groups/group-admin/max"))
+            .andExpect(status().isNotFound)
+            .andExpect(jsonPath("$.code").value("NO_GROUP_WITH_ADMIN"))
     }
 
     @Test

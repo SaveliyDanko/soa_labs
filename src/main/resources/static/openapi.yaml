@@ -46,8 +46,10 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/StudyGroup'}
-        '400': {$ref: '#/components/responses/BadRequest'}
+        '400': {$ref: '#/components/responses/MalformedRequest'}
         '409': {$ref: '#/components/responses/Conflict'}
+        '415': {$ref: '#/components/responses/UnsupportedMediaType'}
+        '422': {$ref: '#/components/responses/ValidationFailed'}
     get:
       tags: [Study Groups]
       summary: Получить страницу учебных групп
@@ -102,7 +104,7 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/StudyGroupPage'}
-        '400': {$ref: '#/components/responses/BadRequest'}
+        '400': {$ref: '#/components/responses/InvalidQuery'}
   /api/study-groups/{id}:
     parameters:
       - $ref: '#/components/parameters/GroupId'
@@ -117,8 +119,8 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/StudyGroup'}
-        '400': {$ref: '#/components/responses/BadRequest'}
-        '404': {$ref: '#/components/responses/NotFound'}
+        '400': {$ref: '#/components/responses/InvalidParameter'}
+        '404': {$ref: '#/components/responses/StudyGroupNotFound'}
     put:
       tags: [Study Groups]
       summary: Полностью обновить группу
@@ -135,9 +137,11 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/StudyGroup'}
-        '400': {$ref: '#/components/responses/BadRequest'}
-        '404': {$ref: '#/components/responses/NotFound'}
+        '400': {$ref: '#/components/responses/MalformedRequest'}
+        '404': {$ref: '#/components/responses/StudyGroupNotFound'}
         '409': {$ref: '#/components/responses/Conflict'}
+        '415': {$ref: '#/components/responses/UnsupportedMediaType'}
+        '422': {$ref: '#/components/responses/ValidationFailed'}
     delete:
       tags: [Study Groups]
       summary: Удалить группу
@@ -145,8 +149,8 @@ paths:
       operationId: deleteStudyGroup
       responses:
         '204': {description: Группа удалена}
-        '400': {$ref: '#/components/responses/BadRequest'}
-        '404': {$ref: '#/components/responses/NotFound'}
+        '400': {$ref: '#/components/responses/InvalidParameter'}
+        '404': {$ref: '#/components/responses/StudyGroupNotFound'}
   /api/study-groups/group-admin/max:
     get:
       tags: [Study Groups]
@@ -162,7 +166,7 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/StudyGroup'}
-        '404': {$ref: '#/components/responses/NotFound'}
+        '404': {$ref: '#/components/responses/NoAdminFound'}
   /api/study-groups/group-admin/count-greater:
     get:
       tags: [Study Groups]
@@ -182,7 +186,7 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/CountResult'}
-        '400': {$ref: '#/components/responses/BadRequest'}
+        '400': {$ref: '#/components/responses/InvalidParameter'}
   /api/study-groups/name/contains:
     get:
       tags: [Study Groups]
@@ -204,7 +208,7 @@ paths:
               schema:
                 type: array
                 items: {$ref: '#/components/schemas/StudyGroup'}
-        '400': {$ref: '#/components/responses/BadRequest'}
+        '400': {$ref: '#/components/responses/InvalidParameter'}
   /isu/group/{groupId}/expel-all:
     post:
       tags: [ISU]
@@ -217,10 +221,19 @@ paths:
       parameters:
         - $ref: '#/components/parameters/IsuGroupId'
       responses:
-        '204': {description: Все студенты отчислены, группа удалена}
-        '400': {$ref: '#/components/responses/BadRequest'}
-        '404': {$ref: '#/components/responses/NotFound'}
+        '200':
+          description: Все студенты отчислены, пустая группа удалена
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ActionResult'}
+              example:
+                code: ALL_STUDENTS_EXPELLED
+                message: Все студенты отчислены; пустая группа удалена
+                resourceId: 42
+        '400': {$ref: '#/components/responses/InvalidParameter'}
+        '404': {$ref: '#/components/responses/StudyGroupNotFound'}
         '502': {$ref: '#/components/responses/BadGateway'}
+        '503': {$ref: '#/components/responses/ServiceUnavailable'}
   /isu/group/{groupId}/change-edu-form/{newForm}:
     post:
       tags: [ISU]
@@ -240,9 +253,10 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/StudyGroup'}
-        '400': {$ref: '#/components/responses/BadRequest'}
-        '404': {$ref: '#/components/responses/NotFound'}
+        '400': {$ref: '#/components/responses/InvalidParameter'}
+        '404': {$ref: '#/components/responses/StudyGroupNotFound'}
         '502': {$ref: '#/components/responses/BadGateway'}
+        '503': {$ref: '#/components/responses/ServiceUnavailable'}
 components:
   parameters:
     GroupId:
@@ -270,26 +284,134 @@ components:
       description: Число элементов на странице
       schema: {type: integer, minimum: 1, maximum: 100, default: 20}
   responses:
-    BadRequest:
-      description: Некорректный JSON, параметр или нарушение ограничений модели
+    MalformedRequest:
+      description: Запрос или JSON невозможно разобрать
       content:
         application/json:
-          schema: {$ref: '#/components/schemas/Error'}
-    NotFound:
-      description: Группа не найдена
+          schema: {$ref: '#/components/schemas/ApiError'}
+          example:
+            timestamp: '2026-09-11T09:00:00Z'
+            status: 400
+            code: MALFORMED_JSON
+            message: Тело запроса содержит некорректный JSON или недопустимое значение enum
+            path: /api/study-groups
+    InvalidQuery:
+      description: Некорректные параметры фильтрации, сортировки или страницы
       content:
         application/json:
-          schema: {$ref: '#/components/schemas/Error'}
+          schema: {$ref: '#/components/schemas/ApiError'}
+          example:
+            timestamp: '2026-09-11T09:00:00Z'
+            status: 400
+            code: INVALID_FILTER_FIELD
+            message: 'Неизвестное поле фильтрации: unknown'
+            path: /api/study-groups
+            details: {field: unknown}
+    InvalidParameter:
+      description: Path- или query-параметр отсутствует, имеет неверный тип или значение
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ApiError'}
+          examples:
+            wrongType:
+              summary: Неверный тип id
+              value:
+                timestamp: '2026-09-11T09:00:00Z'
+                status: 400
+                code: INVALID_PARAMETER_TYPE
+                message: Параметр 'id' имеет неверный тип
+                path: /api/study-groups/abc
+                details: {parameter: id, value: abc, expectedType: int}
+            missing:
+              summary: Отсутствует обязательный параметр
+              value:
+                timestamp: '2026-09-11T09:00:00Z'
+                status: 400
+                code: MISSING_PARAMETER
+                message: Отсутствует обязательный параметр 'substring'
+                path: /api/study-groups/name/contains
+                details: {parameter: substring}
+    ValidationFailed:
+      description: JSON корректен, но поля нарушают ограничения модели
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ValidationError'}
+          example:
+            timestamp: '2026-09-11T09:00:00Z'
+            status: 422
+            code: VALIDATION_FAILED
+            message: JSON корректен синтаксически, но поля нарушают ограничения модели
+            path: /api/study-groups
+            violations: {studentsCount: must be greater than 0}
+    StudyGroupNotFound:
+      description: Учебная группа с переданным id не существует
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ApiError'}
+          example:
+            timestamp: '2026-09-11T09:00:00Z'
+            status: 404
+            code: STUDY_GROUP_NOT_FOUND
+            message: Учебная группа с id=42 не найдена
+            path: /api/study-groups/42
+            details: {id: '42'}
+    NoAdminFound:
+      description: В коллекции нет ни одной группы с администратором
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ApiError'}
+          example:
+            timestamp: '2026-09-11T09:00:00Z'
+            status: 404
+            code: NO_GROUP_WITH_ADMIN
+            message: Нет групп с назначенным администратором
+            path: /api/study-groups/group-admin/max
     Conflict:
-      description: Нарушено ограничение целостности
+      description: Операция конфликтует с текущим состоянием хранилища
       content:
         application/json:
-          schema: {$ref: '#/components/schemas/Error'}
+          schema: {$ref: '#/components/schemas/ApiError'}
+          example:
+            timestamp: '2026-09-11T09:00:00Z'
+            status: 409
+            code: DATA_INTEGRITY_VIOLATION
+            message: Операция конфликтует с текущим состоянием хранилища
+            path: /api/study-groups
+    UnsupportedMediaType:
+      description: Тело передано не как application/json
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ApiError'}
+          example:
+            timestamp: '2026-09-11T09:00:00Z'
+            status: 415
+            code: UNSUPPORTED_MEDIA_TYPE
+            message: Ожидается тело запроса в формате application/json
+            path: /api/study-groups
+            details: {received: text/plain}
     BadGateway:
-      description: Сервис Study Groups недоступен или вернул неожиданный ответ
+      description: Сервис Study Groups вернул некорректный ответ
       content:
         application/json:
-          schema: {$ref: '#/components/schemas/Error'}
+          schema: {$ref: '#/components/schemas/ApiError'}
+          example:
+            timestamp: '2026-09-11T09:00:00Z'
+            status: 502
+            code: UPSTREAM_BAD_RESPONSE
+            message: Сервис Study Groups вернул ошибочный ответ
+            path: /isu/group/42/expel-all
+            details: {upstreamStatus: '500'}
+    ServiceUnavailable:
+      description: Не удалось подключиться к сервису Study Groups
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ApiError'}
+          example:
+            timestamp: '2026-09-11T09:00:00Z'
+            status: 503
+            code: STUDY_GROUPS_SERVICE_UNAVAILABLE
+            message: Сервис Study Groups временно недоступен
+            path: /isu/group/42/change-edu-form/FULL_TIME_EDUCATION
   schemas:
     FormOfEducation:
       type: string
@@ -376,16 +498,44 @@ components:
         totalPages: {type: integer, minimum: 0}
     CountResult:
       type: object
-      required: [count]
+      required: [count, comparedBy, greaterThan]
       properties:
         count: {type: integer, format: int64, minimum: 0}
-    Error:
+        comparedBy:
+          type: string
+          example: groupAdmin.name
+        greaterThan:
+          type: string
+          example: Ivan Ivanov
+    ActionResult:
       type: object
-      required: [timestamp, status, error, message, path, violations]
+      required: [code, message, resourceId]
+      properties:
+        code: {type: string, example: ALL_STUDENTS_EXPELLED}
+        message: {type: string}
+        resourceId: {type: integer, format: int32, minimum: 1}
+    ApiError:
+      type: object
+      required: [timestamp, status, code, message, path]
       properties:
         timestamp: {type: string, format: date-time}
         status: {type: integer}
-        error: {type: string}
+        code:
+          type: string
+          description: Стабильный машинный код ошибки
+        message: {type: string}
+        path: {type: string}
+        details:
+          type: object
+          additionalProperties: {type: string}
+          nullable: true
+    ValidationError:
+      type: object
+      required: [timestamp, status, code, message, path, violations]
+      properties:
+        timestamp: {type: string, format: date-time}
+        status: {type: integer, enum: [400, 422]}
+        code: {type: string}
         message: {type: string}
         path: {type: string}
         violations:
