@@ -1,0 +1,9 @@
+embed-server --std-out=echo --server-config=standalone.xml
+/subsystem=elytron/key-store=applicationKS:write-attribute(name=path,value=server.p12)
+/subsystem=elytron/key-store=applicationKS:write-attribute(name=type,value=PKCS12)
+/subsystem=elytron/key-store=applicationKS:write-attribute(name=credential-reference,value={clear-text=changeit})
+/subsystem=elytron/key-manager=applicationKM:write-attribute(name=credential-reference,value={clear-text=changeit})
+/subsystem=elytron/key-manager=applicationKM:undefine-attribute(name=generate-self-signed-certificate-host)
+/subsystem=elytron/server-ssl-context=applicationSSC:write-attribute(name=protocols,value=["TLSv1.3","TLSv1.2"])
+/socket-binding-group=standard-sockets/socket-binding=http:write-attribute(name=interface,value=management)
+stop-embedded-server

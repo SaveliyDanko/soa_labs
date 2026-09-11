@@ -288,7 +288,7 @@ components:
       description: Запрос или JSON невозможно разобрать
       content:
         application/json:
-          schema: {$ref: '#/components/schemas/ApiError'}
+          schema: {$ref: '#/components/schemas/ApiErrorResponse'}
           example:
             timestamp: '2026-09-11T09:00:00Z'
             status: 400
@@ -299,7 +299,7 @@ components:
       description: Некорректные параметры фильтрации, сортировки или страницы
       content:
         application/json:
-          schema: {$ref: '#/components/schemas/ApiError'}
+          schema: {$ref: '#/components/schemas/ApiErrorResponse'}
           example:
             timestamp: '2026-09-11T09:00:00Z'
             status: 400
@@ -311,7 +311,7 @@ components:
       description: Path- или query-параметр отсутствует, имеет неверный тип или значение
       content:
         application/json:
-          schema: {$ref: '#/components/schemas/ApiError'}
+          schema: {$ref: '#/components/schemas/ApiErrorResponse'}
           examples:
             wrongType:
               summary: Неверный тип id
@@ -335,7 +335,7 @@ components:
       description: JSON корректен, но поля нарушают ограничения модели
       content:
         application/json:
-          schema: {$ref: '#/components/schemas/ValidationError'}
+          schema: {$ref: '#/components/schemas/ValidationErrorResponse'}
           example:
             timestamp: '2026-09-11T09:00:00Z'
             status: 422
@@ -347,7 +347,7 @@ components:
       description: Учебная группа с переданным id не существует
       content:
         application/json:
-          schema: {$ref: '#/components/schemas/ApiError'}
+          schema: {$ref: '#/components/schemas/ApiErrorResponse'}
           example:
             timestamp: '2026-09-11T09:00:00Z'
             status: 404
@@ -359,7 +359,7 @@ components:
       description: В коллекции нет ни одной группы с администратором
       content:
         application/json:
-          schema: {$ref: '#/components/schemas/ApiError'}
+          schema: {$ref: '#/components/schemas/ApiErrorResponse'}
           example:
             timestamp: '2026-09-11T09:00:00Z'
             status: 404
@@ -370,7 +370,7 @@ components:
       description: Операция конфликтует с текущим состоянием хранилища
       content:
         application/json:
-          schema: {$ref: '#/components/schemas/ApiError'}
+          schema: {$ref: '#/components/schemas/ApiErrorResponse'}
           example:
             timestamp: '2026-09-11T09:00:00Z'
             status: 409
@@ -381,7 +381,7 @@ components:
       description: Тело передано не как application/json
       content:
         application/json:
-          schema: {$ref: '#/components/schemas/ApiError'}
+          schema: {$ref: '#/components/schemas/ApiErrorResponse'}
           example:
             timestamp: '2026-09-11T09:00:00Z'
             status: 415
@@ -393,7 +393,7 @@ components:
       description: Сервис Study Groups вернул некорректный ответ
       content:
         application/json:
-          schema: {$ref: '#/components/schemas/ApiError'}
+          schema: {$ref: '#/components/schemas/ApiErrorResponse'}
           example:
             timestamp: '2026-09-11T09:00:00Z'
             status: 502
@@ -405,7 +405,7 @@ components:
       description: Не удалось подключиться к сервису Study Groups
       content:
         application/json:
-          schema: {$ref: '#/components/schemas/ApiError'}
+          schema: {$ref: '#/components/schemas/ApiErrorResponse'}
           example:
             timestamp: '2026-09-11T09:00:00Z'
             status: 503
@@ -514,7 +514,7 @@ components:
         code: {type: string, example: ALL_STUDENTS_EXPELLED}
         message: {type: string}
         resourceId: {type: integer, format: int32, minimum: 1}
-    ApiError:
+    ApiErrorResponse:
       type: object
       required: [timestamp, status, code, message, path]
       properties:
@@ -529,7 +529,7 @@ components:
           type: object
           additionalProperties: {type: string}
           nullable: true
-    ValidationError:
+    ValidationErrorResponse:
       type: object
       required: [timestamp, status, code, message, path, violations]
       properties:

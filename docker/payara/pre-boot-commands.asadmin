@@ -1,0 +1,2 @@
+set server-config.network-config.network-listeners.network-listener.http-listener-1.enabled=false
+set server-config.network-config.protocols.protocol.http-listener-2.ssl.cert-nickname=s1as

@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <title>Study Groups — панель управления</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="hero">
+    <div>
+        <p class="eyebrow">Сервис-ориентированная архитектура</p>
+        <h1>Учебные группы</h1>
+        <p>Коллекция StudyGroup и составные операции ИСУ в одном интерфейсе.</p>
+    </div>
+    <a class="docs-link" href="/swagger-ui.html" target="_blank" rel="noreferrer">Открыть Swagger UI ↗</a>
+</header>
+
+<main>
+    <section id="notice" class="notice" hidden aria-live="polite"></section>
+
+    <section class="panel collection-panel">
+        <div class="panel-heading">
+            <div>
+                <p class="eyebrow">Первый сервис · Payara</p>
+                <h2>Коллекция</h2>
+            </div>
+            <button id="new-group" class="primary">+ Новая группа</button>
+        </div>
+
+        <form id="query-form" class="query-grid">
+            <label>Страница
+                <input id="page" type="number" min="0" value="0">
+            </label>
+            <label>Размер
+                <input id="size" type="number" min="1" max="100" value="10">
+            </label>
+            <label class="wide">Сортировка <span>по правилу на строку: field,asc|desc</span>
+                <textarea id="sort" rows="2" placeholder="formOfEducation,asc&#10;studentsCount,desc">id,asc</textarea>
+            </label>
+            <label class="wide">Фильтры <span>по условию на строку: field:operator:value</span>
+                <textarea id="filter" rows="2" placeholder="name:contains:math&#10;studentsCount:ge:10"></textarea>
+            </label>
+            <div class="query-actions">
+                <button type="submit" class="primary">Применить</button>
+                <button id="reset-query" type="button">Сбросить</button>
+            </div>
+        </form>
+
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>ID</th><th>Группа</th><th>Координаты</th><th>Студенты</th><th>Обучение</th><th>Администратор</th><th>Создана</th><th></th></tr></thead>
+                <tbody id="groups-body"></tbody>
+            </table>
+        </div>
+        <div class="pager">
+            <button id="previous-page" type="button">← Назад</button>
+            <span id="page-summary">—</span>
+            <button id="next-page" type="button">Вперёд →</button>
+        </div>
+    </section>
+
+    <section class="operations-grid">
+        <article class="panel">
+            <p class="eyebrow">Операции коллекции</p>
+            <h2>Специальные запросы</h2>
+            <div class="stack">
+                <form id="get-by-id-form" class="inline-form">
+                    <input id="lookup-id" type="number" min="1" required placeholder="ID группы">
+                    <button type="submit">Получить по ID</button>
+                </form>
+                <button id="max-admin" type="button">Группа с максимальным администратором</button>
+                <form id="count-admin-form" class="inline-form">
+                    <input id="admin-name" required placeholder="Имя администратора">
+                    <button type="submit">Посчитать имена больше</button>
+                </form>
+                <form id="contains-form" class="inline-form">
+                    <input id="substring" required placeholder="Подстрока названия">
+                    <button type="submit">Найти группы</button>
+                </form>
+            </div>
+            <div id="special-result" class="result-box muted">Результат появится здесь.</div>
+        </article>
+
+        <article class="panel accent-panel">
+            <p class="eyebrow">Второй сервис · WildFly</p>
+            <h2>Операции ИСУ</h2>
+            <form id="isu-form" class="stack">
+                <label>ID группы<input id="isu-group-id" type="number" min="1" required></label>
+                <label>Новая форма обучения
+                    <select id="isu-form-value">
+                        <option>DISTANCE_EDUCATION</option>
+                        <option>FULL_TIME_EDUCATION</option>
+                        <option>EVENING_CLASSES</option>
+                    </select>
+                </label>
+                <div class="button-row">
+                    <button id="change-form" type="submit" class="primary">Сменить форму</button>
+                    <button id="expel-all" type="button" class="danger">Отчислить всех</button>
+                </div>
+            </form>
+            <div id="isu-result" class="result-box muted">Результат операции появится здесь.</div>
+        </article>
+    </section>
+</main>
+
+<dialog id="group-dialog">
+    <form id="group-form" method="dialog">
+        <div class="dialog-heading">
+            <div><p class="eyebrow">StudyGroup</p><h2 id="dialog-title">Новая группа</h2></div>
+            <button id="close-dialog" type="button" class="icon-button" aria-label="Закрыть">×</button>
+        </div>
+        <input id="edit-id" type="hidden">
+        <div class="form-grid">
+            <label class="wide">Название<input id="group-name" required></label>
+            <label>X<input id="coordinate-x" type="number" step="any" required></label>
+            <label>Y<input id="coordinate-y" type="number" step="any" required></label>
+            <label>Количество студентов<input id="students-count" type="number" min="1" required></label>
+            <label>Форма обучения<select id="education-form" required></select></label>
+            <label>Семестр<select id="semester"><option value="">Не указан</option></select></label>
+        </div>
+
+        <label class="switch"><input id="has-admin" type="checkbox"> Указать администратора группы</label>
+        <fieldset id="admin-fields" disabled>
+            <legend>Администратор</legend>
+            <div class="form-grid">
+                <label class="wide">Имя<input id="person-name"></label>
+                <label class="wide">Дата рождения (ISO 8601)<input id="birthday" placeholder="1985-06-20T10:15:30+03:00[Europe/Moscow]"></label>
+                <label>Цвет волос<select id="hair-color"><option value="">Не указан</option></select></label>
+                <label>Гражданство<select id="nationality"></select></label>
+            </div>
+            <label class="switch"><input id="has-location" type="checkbox"> Указать местоположение</label>
+            <div id="location-fields" class="form-grid" aria-disabled="true">
+                <label>Location X<input id="location-x" type="number" step="1" disabled></label>
+                <label>Location Y<input id="location-y" type="number" step="any" disabled></label>
+                <label>Location Z<input id="location-z" type="number" step="any" disabled></label>
+            </div>
+        </fieldset>
+        <div class="dialog-actions">
+            <button id="cancel-dialog" type="button">Отмена</button>
+            <button type="submit" class="primary">Сохранить</button>
+        </div>
+    </form>
+</dialog>
+
+<script src="app.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,36 @@
+services:
+  payara:
+    build:
+      context: .
+      dockerfile: docker/payara/Dockerfile
+    ports:
+      - "${PAYARA_HTTPS_PORT:-8181}:8181"
+    restart: unless-stopped
+
+  wildfly:
+    build:
+      context: .
+      dockerfile: docker/wildfly/Dockerfile
+    environment:
+      STUDY_GROUPS_BASE_URL: https://payara:8181
+      STUDY_GROUPS_TRUSTSTORE: /opt/jboss/wildfly/standalone/configuration/truststore.p12
+      STUDY_GROUPS_TRUSTSTORE_PASSWORD: changeit
+    ports:
+      - "${WILDFLY_HTTPS_PORT:-8443}:8443"
+    depends_on:
+      - payara
+    restart: unless-stopped
+
+  client:
+    build:
+      context: .
+      dockerfile: web-client/Dockerfile
+    volumes:
+      - ./docker/tls/server.crt:/etc/nginx/tls/server.crt:ro
+      - ./docker/tls/server.key:/etc/nginx/tls/server.key:ro
+    ports:
+      - "${CLIENT_HTTPS_PORT:-3000}:443"
+    depends_on:
+      - payara
+      - wildfly
+    restart: unless-stopped

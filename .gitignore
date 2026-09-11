@@ -1,10 +1,16 @@
 # Maven build output
 target/
+dist/
 
 # Runtime data (embedded H2)
 data/
 *.mv.db
 *.trace.db
+
+# Locally generated self-signed TLS material
+docker/tls/*.crt
+docker/tls/*.key
+docker/tls/*.p12
 
 # IDE metadata
 .idea/

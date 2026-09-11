@@ -1,6 +1,0 @@
-spring:
-  datasource:
-    url: jdbc:h2:mem:study-groups;DB_CLOSE_DELAY=-1
-  jpa:
-    hibernate:
-      ddl-auto: create-drop

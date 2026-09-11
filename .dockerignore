@@ -1,0 +1,13 @@
+.git
+.idea
+data
+**/target/*
+!study-groups-service/target/study-groups.war
+!isu-service/target/isu.war
+docker/tls/*.crt
+docker/tls/*.key
+docker/tls/*.p12
+!docker/tls/server.crt
+!docker/tls/server.key
+!docker/tls/server.p12
+!docker/tls/truststore.p12

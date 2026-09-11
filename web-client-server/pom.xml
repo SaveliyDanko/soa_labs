@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>ru.itmo.soa</groupId>
+        <artifactId>soa-lab-services</artifactId>
+        <version>2.0.0</version>
+    </parent>
+    <artifactId>web-client-server</artifactId>
+    <name>Portable Java HTTPS client server</name>
+
+    <build>
+        <finalName>web-client</finalName>
+        <resources>
+            <resource>
+                <directory>${maven.multiModuleProjectDirectory}/web-client/public</directory>
+                <targetPath>public</targetPath>
+            </resource>
+        </resources>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>3.4.2</version>
+                <configuration>
+                    <archive>
+                        <manifest>
+                            <mainClass>ru.itmo.soa.client.PortableClientServer</mainClass>
+                        </manifest>
+                    </archive>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>

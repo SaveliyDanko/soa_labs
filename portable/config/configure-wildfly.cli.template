@@ -1,0 +1,12 @@
+embed-server --std-out=echo --server-config=standalone.xml
+/subsystem=elytron/key-store=applicationKS:write-attribute(name=path,value=server.p12)
+/subsystem=elytron/key-store=applicationKS:write-attribute(name=type,value=PKCS12)
+/subsystem=elytron/key-store=applicationKS:write-attribute(name=credential-reference,value={clear-text={TLS_STORE_PASSWORD}})
+/subsystem=elytron/key-manager=applicationKM:write-attribute(name=credential-reference,value={clear-text={TLS_STORE_PASSWORD}})
+/subsystem=elytron/key-manager=applicationKM:undefine-attribute(name=generate-self-signed-certificate-host)
+/subsystem=elytron/server-ssl-context=applicationSSC:write-attribute(name=protocols,value=["TLSv1.3","TLSv1.2"])
+/subsystem=undertow/server=default-server/http-listener=default:write-attribute(name=enabled,value=false)
+/subsystem=io/worker=default:write-attribute(name=io-threads,value=2)
+/subsystem=io/worker=default:write-attribute(name=task-core-threads,value=2)
+/subsystem=io/worker=default:write-attribute(name=task-max-threads,value=8)
+stop-embedded-server
