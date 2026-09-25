@@ -2,6 +2,8 @@ package ru.itmo.soa.studygroups;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import ru.itmo.soa.error.ApiException;
+import ru.itmo.soa.error.ErrorCode;
 import ru.itmo.soa.model.ApiModels.CountResult;
 import ru.itmo.soa.model.ApiModels.StudyGroup;
 import ru.itmo.soa.model.ApiModels.StudyGroupPage;
@@ -39,8 +41,7 @@ public class StudyGroupService {
                 .filter(group -> group.getGroupAdmin() != null)
                 .max(Comparator.comparing((StudyGroup group) -> group.getGroupAdmin().getName())
                         .thenComparing(group -> -group.getId()))
-                .orElseThrow(() -> new ApiException(404, "NO_GROUP_WITH_ADMIN",
-                        "Нет групп с назначенным администратором"));
+                .orElseThrow(() -> new ApiException(ErrorCode.NO_GROUP_WITH_ADMIN));
     }
 
     public CountResult countAdminGreaterThan(String adminName) {

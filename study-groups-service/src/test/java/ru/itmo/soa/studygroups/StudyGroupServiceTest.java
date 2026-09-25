@@ -2,6 +2,7 @@ package ru.itmo.soa.studygroups;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import ru.itmo.soa.error.ApiException;
 import ru.itmo.soa.model.ApiModels.Coordinates;
 import ru.itmo.soa.model.ApiModels.Country;
 import ru.itmo.soa.model.ApiModels.FormOfEducation;

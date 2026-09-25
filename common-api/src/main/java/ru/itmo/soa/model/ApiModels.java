@@ -11,6 +11,10 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import static ru.itmo.soa.error.ValidationMessages.NOT_BLANK;
+import static ru.itmo.soa.error.ValidationMessages.POSITIVE;
+import static ru.itmo.soa.error.ValidationMessages.REQUIRED;
+
 /** Shared JSON-B compatible models used by both Jakarta REST services. */
 public final class ApiModels {
     private ApiModels() {}
@@ -21,8 +25,8 @@ public final class ApiModels {
     public enum Country { USA, CHINA, VATICAN, SOUTH_KOREA, NORTH_KOREA }
 
     public static class Coordinates {
-        @NotNull private Float x;
-        @NotNull private Float y;
+        @NotNull(message = REQUIRED) private Float x;
+        @NotNull(message = REQUIRED) private Float y;
         public Coordinates() {}
         public Coordinates(Float x, Float y) { this.x = x; this.y = y; }
         public Float getX() { return x; }
@@ -32,9 +36,9 @@ public final class ApiModels {
     }
 
     public static class Location {
-        @NotNull private Long x;
-        @NotNull private Double y;
-        @NotNull private Double z;
+        @NotNull(message = REQUIRED) private Long x;
+        @NotNull(message = REQUIRED) private Double y;
+        @NotNull(message = REQUIRED) private Double z;
         public Location() {}
         public Location(Long x, Double y, Double z) { this.x = x; this.y = y; this.z = z; }
         public Long getX() { return x; }
@@ -46,10 +50,10 @@ public final class ApiModels {
     }
 
     public static class Person {
-        @NotBlank private String name;
+        @NotBlank(message = NOT_BLANK) private String name;
         private ZonedDateTime birthday;
         private Color hairColor;
-        @NotNull private Country nationality;
+        @NotNull(message = REQUIRED) private Country nationality;
         @Valid private Location location;
         public Person() {}
         public Person(String name, ZonedDateTime birthday, Color hairColor, Country nationality, Location location) {
@@ -69,10 +73,10 @@ public final class ApiModels {
     }
 
     public static class StudyGroupRequest {
-        @NotBlank private String name;
-        @NotNull @Valid private Coordinates coordinates;
-        @NotNull @Positive private Long studentsCount;
-        @NotNull private FormOfEducation formOfEducation;
+        @NotBlank(message = NOT_BLANK) private String name;
+        @NotNull(message = REQUIRED) @Valid private Coordinates coordinates;
+        @NotNull(message = REQUIRED) @Positive(message = POSITIVE) private Long studentsCount;
+        @NotNull(message = REQUIRED) private FormOfEducation formOfEducation;
         private Semester semesterEnum;
         @Valid private Person groupAdmin;
         public StudyGroupRequest() {}
@@ -96,8 +100,8 @@ public final class ApiModels {
     }
 
     public static class StudyGroup extends StudyGroupRequest {
-        @Positive private Integer id;
-        @NotNull private Instant creationDate;
+        @Positive(message = POSITIVE) private Integer id;
+        @NotNull(message = REQUIRED) private Instant creationDate;
         public StudyGroup() {}
         public StudyGroup(Integer id, Instant creationDate, StudyGroupRequest request) {
             super(request.getName(), ApiModels.copy(request.getCoordinates()), request.getStudentsCount(),

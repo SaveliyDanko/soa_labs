@@ -1,6 +1,8 @@
 package ru.itmo.soa.studygroups;
 
 import jakarta.enterprise.context.ApplicationScoped;
+import ru.itmo.soa.error.ApiException;
+import ru.itmo.soa.error.ErrorCode;
 import ru.itmo.soa.model.ApiModels.StudyGroup;
 import ru.itmo.soa.model.ApiModels.StudyGroupRequest;
 
@@ -54,7 +56,6 @@ public class StudyGroupStore {
     }
 
     private ApiException notFound(int id) {
-        return new ApiException(404, "STUDY_GROUP_NOT_FOUND",
-                "Учебная группа с id=" + id + " не найдена", Map.of("id", Integer.toString(id)));
+        return new ApiException(ErrorCode.STUDY_GROUP_NOT_FOUND, Map.of("id", Integer.toString(id)));
     }
 }

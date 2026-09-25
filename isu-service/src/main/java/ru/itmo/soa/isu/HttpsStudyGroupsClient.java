@@ -9,6 +9,8 @@ import jakarta.ws.rs.client.Entity;
 import jakarta.ws.rs.client.Invocation;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import ru.itmo.soa.error.ApiException;
+import ru.itmo.soa.error.ErrorCode;
 import ru.itmo.soa.model.ApiModels.StudyGroup;
 import ru.itmo.soa.model.ApiModels.StudyGroupRequest;
 
@@ -31,7 +33,7 @@ public class HttpsStudyGroupsClient implements StudyGroupsClient {
     public HttpsStudyGroupsClient() {
         this.baseUrl = configuredBaseUrl();
         if (!baseUrl.toLowerCase().startsWith("https://")) {
-            throw new IllegalStateException("STUDY_GROUPS_BASE_URL must use https://");
+            throw new IllegalStateException("Адрес STUDY_GROUPS_BASE_URL должен использовать протокол https://");
         }
         ClientBuilder builder = ClientBuilder.newBuilder()
                 .connectTimeout(4, TimeUnit.SECONDS)
@@ -45,7 +47,7 @@ public class HttpsStudyGroupsClient implements StudyGroupsClient {
     public StudyGroup get(int id) {
         Invocation invocation = client.target(baseUrl).path("api/study-groups").path(Integer.toString(id))
                 .request(MediaType.APPLICATION_JSON_TYPE).buildGet();
-        return execute(invocation, 200, StudyGroup.class);
+        return execute(invocation, 200, StudyGroup.class, id);
     }
 
     @Override
@@ -53,41 +55,37 @@ public class HttpsStudyGroupsClient implements StudyGroupsClient {
         Invocation invocation = client.target(baseUrl).path("api/study-groups").path(Integer.toString(id))
                 .request(MediaType.APPLICATION_JSON_TYPE)
                 .buildPut(Entity.entity(request, MediaType.APPLICATION_JSON_TYPE));
-        return execute(invocation, 200, StudyGroup.class);
+        return execute(invocation, 200, StudyGroup.class, id);
     }
 
     @Override
     public void delete(int id) {
         Invocation invocation = client.target(baseUrl).path("api/study-groups").path(Integer.toString(id))
                 .request(MediaType.APPLICATION_JSON_TYPE).buildDelete();
-        execute(invocation, 204, null);
+        execute(invocation, 204, null, id);
     }
 
-    private <T> T execute(Invocation invocation, int expectedStatus, Class<T> responseType) {
+    private <T> T execute(Invocation invocation, int expectedStatus, Class<T> responseType, int id) {
         final Response response;
         try {
             response = invocation.invoke();
         } catch (ProcessingException exception) {
-            throw new ApiException(503, "STUDY_GROUPS_SERVICE_UNAVAILABLE",
-                    "Сервис Study Groups временно недоступен", Map.of(), exception);
+            throw new ApiException(ErrorCode.STUDY_GROUPS_SERVICE_UNAVAILABLE, Map.of(), exception);
         }
         try (response) {
             int status = response.getStatus();
             if (status == 404) {
-                throw new ApiException(404, "STUDY_GROUP_NOT_FOUND",
-                        "Сервис Study Groups не нашёл указанную группу");
+                throw new ApiException(ErrorCode.STUDY_GROUP_NOT_FOUND, Map.of("id", Integer.toString(id)));
             }
             if (status != expectedStatus) {
-                throw new ApiException(502, "UPSTREAM_BAD_RESPONSE",
-                        "Сервис Study Groups вернул ошибочный ответ",
+                throw new ApiException(ErrorCode.UPSTREAM_BAD_RESPONSE,
                         Map.of("upstreamStatus", Integer.toString(status)));
             }
             if (responseType == null) return null;
             try {
                 return response.readEntity(responseType);
             } catch (ProcessingException | IllegalStateException exception) {
-                throw new ApiException(502, "UPSTREAM_BAD_RESPONSE",
-                        "Не удалось обработать ответ сервиса Study Groups", Map.of(), exception);
+                throw new ApiException(ErrorCode.UPSTREAM_BAD_RESPONSE, Map.of(), exception);
             }
         }
     }
@@ -122,7 +120,7 @@ public class HttpsStudyGroupsClient implements StudyGroupsClient {
             context.init(null, factory.getTrustManagers(), null);
             return context;
         } catch (GeneralSecurityException | IOException exception) {
-            throw new IllegalStateException("Cannot load Study Groups TLS trust store", exception);
+            throw new IllegalStateException("Не удалось загрузить хранилище доверенных TLS-сертификатов сервиса учебных групп", exception);
         }
     }
 }

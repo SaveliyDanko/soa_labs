@@ -293,7 +293,7 @@ components:
             timestamp: '2026-09-11T09:00:00Z'
             status: 400
             code: MALFORMED_JSON
-            message: Тело запроса содержит некорректный JSON или недопустимое значение enum
+            message: Тело запроса содержит некорректный JSON, неизвестное поле или недопустимое значение
             path: /api/study-groups
     InvalidQuery:
       description: Некорректные параметры фильтрации, сортировки или страницы
@@ -304,7 +304,7 @@ components:
             timestamp: '2026-09-11T09:00:00Z'
             status: 400
             code: INVALID_FILTER_FIELD
-            message: 'Неизвестное поле фильтрации: unknown'
+            message: Указано неизвестное поле фильтрации
             path: /api/study-groups
             details: {field: unknown}
     InvalidParameter:
@@ -319,7 +319,7 @@ components:
                 timestamp: '2026-09-11T09:00:00Z'
                 status: 400
                 code: INVALID_PARAMETER_TYPE
-                message: Параметр 'id' имеет неверный тип
+                message: Параметр имеет неверный тип
                 path: /api/study-groups/abc
                 details: {parameter: id, value: abc, expectedType: int}
             missing:
@@ -328,7 +328,7 @@ components:
                 timestamp: '2026-09-11T09:00:00Z'
                 status: 400
                 code: MISSING_PARAMETER
-                message: Отсутствует обязательный параметр 'substring'
+                message: Отсутствует обязательный параметр
                 path: /api/study-groups/name/contains
                 details: {parameter: substring}
     ValidationFailed:
@@ -340,9 +340,9 @@ components:
             timestamp: '2026-09-11T09:00:00Z'
             status: 422
             code: VALIDATION_FAILED
-            message: JSON корректен синтаксически, но поля нарушают ограничения модели
+            message: Поля запроса не прошли проверку
             path: /api/study-groups
-            violations: {studentsCount: must be greater than 0}
+            violations: {studentsCount: Значение должно быть больше нуля}
     StudyGroupNotFound:
       description: Учебная группа с переданным id не существует
       content:
@@ -352,7 +352,7 @@ components:
             timestamp: '2026-09-11T09:00:00Z'
             status: 404
             code: STUDY_GROUP_NOT_FOUND
-            message: Учебная группа с id=42 не найдена
+            message: Учебная группа не найдена
             path: /api/study-groups/42
             details: {id: '42'}
     NoAdminFound:
@@ -388,7 +388,6 @@ components:
             code: UNSUPPORTED_MEDIA_TYPE
             message: Ожидается тело запроса в формате application/json
             path: /api/study-groups
-            details: {received: text/plain}
     BadGateway:
       description: Сервис Study Groups вернул некорректный ответ
       content:
@@ -398,7 +397,7 @@ components:
             timestamp: '2026-09-11T09:00:00Z'
             status: 502
             code: UPSTREAM_BAD_RESPONSE
-            message: Сервис Study Groups вернул ошибочный ответ
+            message: Сервис учебных групп вернул некорректный ответ
             path: /isu/group/42/expel-all
             details: {upstreamStatus: '500'}
     ServiceUnavailable:
@@ -410,7 +409,7 @@ components:
             timestamp: '2026-09-11T09:00:00Z'
             status: 503
             code: STUDY_GROUPS_SERVICE_UNAVAILABLE
-            message: Сервис Study Groups временно недоступен
+            message: Сервис учебных групп временно недоступен
             path: /isu/group/42/change-edu-form/FULL_TIME_EDUCATION
   schemas:
     FormOfEducation:
@@ -515,6 +514,11 @@ components:
         message: {type: string}
         resourceId: {type: integer, format: int32, minimum: 1}
     ApiErrorResponse:
+      description: >-
+        Общий формат ошибок обоих сервисов. Сообщение message и описания нарушений
+        violations всегда возвращаются на русском языке; code и ключи details
+        остаются стабильными машинными идентификаторами. Заголовок Content-Language — ru.
+        Неожиданные ошибки возвращают INTERNAL_SERVER_ERROR без внутренних подробностей.
       type: object
       required: [timestamp, status, code, message, path]
       properties:

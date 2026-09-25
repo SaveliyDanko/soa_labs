@@ -6,6 +6,9 @@ import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
+import ru.itmo.soa.error.ApiException;
+import ru.itmo.soa.error.ErrorCode;
+import ru.itmo.soa.error.RequestValidation;
 import ru.itmo.soa.model.ApiModels.ActionResult;
 import ru.itmo.soa.model.ApiModels.FormOfEducation;
 import ru.itmo.soa.model.ApiModels.StudyGroup;
@@ -32,25 +35,13 @@ public class IsuResource {
         try {
             form = FormOfEducation.valueOf(newForm);
         } catch (IllegalArgumentException | NullPointerException exception) {
-            throw new ApiException(400, "INVALID_PARAMETER_VALUE",
-                    "Параметр 'newForm' содержит неизвестную форму обучения",
+            throw new ApiException(ErrorCode.INVALID_PARAMETER_VALUE,
                     Map.of("parameter", "newForm", "value", String.valueOf(newForm)));
         }
         return service.changeEducationForm(id(groupId), form);
     }
 
     private int id(String value) {
-        final int id;
-        try {
-            id = Integer.parseInt(value);
-        } catch (NumberFormatException exception) {
-            throw new ApiException(400, "INVALID_PARAMETER_TYPE", "Параметр 'groupId' имеет неверный тип",
-                    Map.of("parameter", "groupId", "value", value, "expectedType", "int"));
-        }
-        if (id < 1) {
-            throw new ApiException(400, "INVALID_PARAMETER_VALUE", "Параметр 'groupId' должен быть больше 0",
-                    Map.of("parameter", "groupId", "value", value));
-        }
-        return id;
+        return RequestValidation.positiveId(value, "groupId");
     }
 }

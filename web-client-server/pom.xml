@@ -11,6 +11,13 @@
     <artifactId>web-client-server</artifactId>
     <name>Portable Java HTTPS client server</name>
 
+    <dependencies>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+        </dependency>
+    </dependencies>
+
     <build>
         <finalName>web-client</finalName>
         <resources>

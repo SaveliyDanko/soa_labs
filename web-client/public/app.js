@@ -20,6 +20,25 @@ const LABELS = {
     NORTH_KOREA: 'Северная Корея'
 };
 const TABLE_LABELS = ['ID', 'Группа', 'Координаты', 'Студенты', 'Обучение', 'Администратор', 'Создана', 'Действия'];
+const FIELD_LABELS = {
+    request: 'Тело запроса', id: 'Идентификатор группы', groupId: 'Идентификатор группы', name: 'Название группы',
+    coordinates: 'Координаты', 'coordinates.x': 'Координата X', 'coordinates.y': 'Координата Y',
+    creationDate: 'Дата создания', studentsCount: 'Количество студентов', formOfEducation: 'Форма обучения',
+    newForm: 'Новая форма обучения', semesterEnum: 'Семестр', groupAdmin: 'Администратор',
+    'groupAdmin.name': 'Имя администратора', 'groupAdmin.birthday': 'Дата рождения администратора',
+    'groupAdmin.hairColor': 'Цвет волос', 'groupAdmin.nationality': 'Гражданство',
+    'groupAdmin.location': 'Местоположение', 'groupAdmin.location.x': 'Местоположение: X',
+    'groupAdmin.location.y': 'Местоположение: Y', 'groupAdmin.location.z': 'Местоположение: Z',
+    page: 'Номер страницы', size: 'Размер страницы', adminName: 'Имя администратора', substring: 'Подстрока',
+    parameter: 'Параметр', field: 'Поле', value: 'Значение', expectedType: 'Ожидаемый тип',
+    filter: 'Фильтр', operator: 'Оператор', sort: 'Сортировка', min: 'Минимум', max: 'Максимум',
+    upstreamStatus: 'Код ответа сервиса', status: 'Код ответа', received: 'Полученный формат'
+};
+const TYPE_LABELS = {
+    int: 'целое число', Integer: 'целое число', Long: 'целое число', Float: 'конечное число',
+    Double: 'конечное число', String: 'строка', Instant: 'дата и время', ZonedDateTime: 'дата и время с часовым поясом',
+    FormOfEducation: 'форма обучения', Semester: 'семестр', Color: 'цвет волос', Country: 'страна'
+};
 const state = { page: null, groups: new Map(), loading: false };
 const byId = id => document.getElementById(id);
 
@@ -39,31 +58,46 @@ fillSelect('hair-color', COLORS);
 fillSelect('nationality', COUNTRIES);
 
 async function api(url, options = {}) {
-    const response = await fetch(url, {
-        ...options,
-        headers: {
-            Accept: 'application/json',
-            ...(options.body ? { 'Content-Type': 'application/json' } : {}),
-            ...options.headers
-        }
-    });
-    const text = await response.text();
+    let response;
+    let text;
+    try {
+        response = await fetch(url, {
+            ...options,
+            headers: {
+                Accept: 'application/json',
+                ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+                ...options.headers
+            }
+        });
+        text = await response.text();
+    } catch (cause) {
+        throw new Error('Не удалось связаться с сервером. Проверьте подключение и доступность сервиса.', { cause });
+    }
     let body = null;
     if (text) {
         const isJson = response.headers.get('content-type')?.includes('application/json');
         try {
-            body = isJson ? JSON.parse(text) : { message: `Сервис вернул HTTP ${response.status}` };
+            body = isJson ? JSON.parse(text) : null;
         } catch {
-            body = { message: `Сервис вернул HTTP ${response.status}` };
+            body = null;
         }
     }
     if (!response.ok) {
-        const error = new Error(body?.message || `Сервис вернул HTTP ${response.status}`);
+        const error = new Error(typeof body?.message === 'string' ? body.message : httpErrorMessage(response.status));
         error.status = response.status;
         error.body = body;
         throw error;
     }
+    if (response.status !== 204 && (!body || typeof body !== 'object')) {
+        throw new Error('Сервер вернул некорректный ответ. Повторите попытку позже.');
+    }
     return body;
+}
+
+function httpErrorMessage(status) {
+    if (status === 413) return 'Тело запроса слишком велико.';
+    if (status === 502 || status === 503 || status === 504) return 'Сервис временно недоступен. Повторите попытку позже.';
+    return `Не удалось выполнить запрос. Код ответа сервера: ${status}.`;
 }
 
 function showNotice(message, error = false) {
@@ -80,11 +114,17 @@ function showNotice(message, error = false) {
 
 function showError(error) {
     const body = error.body || {};
-    const fields = body.violations || body.details;
-    const suffix = fields
-        ? ' — ' + Object.entries(fields).map(([key, value]) => `${key}: ${value}`).join('; ')
-        : '';
-    showNotice(`${body.code ? `[${body.code}] ` : ''}${error.message}${suffix}`, true);
+    const fields = Object.entries(body.violations || body.details || {});
+    const suffix = fields.length ? ' — ' + fields.map(([key, value]) => {
+        const label = FIELD_LABELS[key] || key;
+        const text = key === 'expectedType' ? (TYPE_LABELS[value] || value)
+            : key === 'field' || key === 'parameter' ? (FIELD_LABELS[value] || value)
+                : LABELS[value] || value;
+        return `${label}: ${text}`;
+    }).join('; ') : '';
+    const message = error instanceof TypeError || error instanceof SyntaxError
+        ? 'Не удалось выполнить действие. Повторите попытку.' : error.message;
+    showNotice(`${message}${suffix}`, true);
 }
 
 function lines(id) {

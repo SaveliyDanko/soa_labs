@@ -37,18 +37,22 @@ import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * Dependency-free Java 17 HTTPS host for the browser client. It also provides a
  * same-origin reverse proxy for the two application servers and Swagger UI.
  */
 public final class PortableClientServer {
+    private static final Logger LOGGER = Logger.getLogger(PortableClientServer.class.getName());
     private static final int MAX_REQUEST_BYTES = 2 * 1024 * 1024;
     private static final Set<String> FORWARDED_REQUEST_HEADERS = Set.of("accept", "content-type", "origin");
     private static final Map<String, String> STATIC_MEDIA_TYPES = Map.of(
@@ -109,7 +113,7 @@ public final class PortableClientServer {
             executor.shutdown();
         }, "web-client-shutdown"));
         server.start();
-        System.out.printf("Web client listening at https://%s:%d%n", config.bindAddress(), config.port());
+        System.out.printf("Веб-клиент доступен по адресу https://%s:%d%n", config.bindAddress(), config.port());
     }
 
     private static final class ProxyHandler implements HttpHandler {
@@ -140,6 +144,10 @@ public final class PortableClientServer {
                 builder.method(exchange.getRequestMethod(), publisher);
 
                 HttpResponse<byte[]> response = client.send(builder.build(), HttpResponse.BodyHandlers.ofByteArray());
+                for (String header : List.of("Allow", "WWW-Authenticate", "Retry-After", "Content-Language")) {
+                    response.headers().firstValue(header)
+                            .ifPresent(value -> exchange.getResponseHeaders().set(header, value));
+                }
                 response.headers().firstValue("Content-Type")
                         .ifPresent(value -> exchange.getResponseHeaders().set("Content-Type", value));
                 response.headers().firstValue("Location")
@@ -153,12 +161,16 @@ public final class PortableClientServer {
                     exchange.getResponseBody().write(body);
                 }
             } catch (RequestTooLargeException exception) {
-                json(exchange, 413, error(413, "REQUEST_TOO_LARGE", "Тело запроса превышает 2 МБ"));
+                error(exchange, 413, "REQUEST_TOO_LARGE", "Тело запроса превышает 2 МБ");
             } catch (InterruptedException exception) {
                 Thread.currentThread().interrupt();
-                json(exchange, 503, error(503, "UPSTREAM_UNAVAILABLE", "Вызов сервиса был прерван"));
+                error(exchange, 503, "UPSTREAM_UNAVAILABLE", "Вызов сервиса был прерван");
+            } catch (IOException exception) {
+                LOGGER.log(Level.WARNING, "Не удалось выполнить запрос к сервису", exception);
+                error(exchange, 503, "UPSTREAM_UNAVAILABLE", "Сервис временно недоступен");
             } catch (Exception exception) {
-                json(exchange, 503, error(503, "UPSTREAM_UNAVAILABLE", "Сервис временно недоступен"));
+                LOGGER.log(Level.SEVERE, "Необработанная ошибка прокси", exception);
+                error(exchange, 500, "INTERNAL_SERVER_ERROR", "Внутренняя ошибка сервера");
             } finally {
                 exchange.close();
             }
@@ -182,13 +194,14 @@ public final class PortableClientServer {
         public void handle(HttpExchange exchange) throws IOException {
             try {
                 if (!exchange.getRequestMethod().equals("GET") && !exchange.getRequestMethod().equals("HEAD")) {
-                    json(exchange, 405, error(405, "METHOD_NOT_ALLOWED", "Для статического ресурса доступен только GET"));
+                    exchange.getResponseHeaders().set("Allow", "GET, HEAD");
+                    error(exchange, 405, "METHOD_NOT_ALLOWED", "Для статического ресурса доступны только методы GET и HEAD");
                     return;
                 }
                 String path = exchange.getRequestURI().getPath();
                 if (path.equals("/")) path = "/index.html";
                 if (path.contains("..")) {
-                    json(exchange, 400, error(400, "INVALID_PATH", "Некорректный путь"));
+                    error(exchange, 400, "INVALID_PATH", "Некорректный путь");
                     return;
                 }
                 InputStream input = PortableClientServer.class.getResourceAsStream("/public" + path);
@@ -197,7 +210,7 @@ public final class PortableClientServer {
                     path = "/index.html";
                 }
                 if (input == null) {
-                    json(exchange, 404, error(404, "RESOURCE_NOT_FOUND", "Статический ресурс не найден"));
+                    error(exchange, 404, "RESOURCE_NOT_FOUND", "Статический ресурс не найден");
                     return;
                 }
                 byte[] body;
@@ -239,7 +252,7 @@ public final class PortableClientServer {
 
     private static void check(String[] args) throws Exception {
         if (args.length != 5 && args.length != 6) {
-            throw new IllegalArgumentException("Usage: java -jar web-client.jar check <https-url> <truststore> <password> <seconds> [status[,status...]]");
+            throw new IllegalArgumentException("Использование: java -jar web-client.jar check <HTTPS-адрес> <хранилище-сертификатов> <пароль> <секунды> [код[,код...]]");
         }
         URI uri = httpsUri(args[1]);
         SSLContext tls = keyStoreContext(Path.of(args[2]), args[3], false);
@@ -252,29 +265,29 @@ public final class PortableClientServer {
                 HttpResponse<Void> response = client.send(request, HttpResponse.BodyHandlers.discarding());
                 if (args.length == 6 && !Set.of(args[5].split(","))
                         .contains(Integer.toString(response.statusCode()))) {
-                    throw new IOException("Unexpected HTTP status " + response.statusCode());
+                    throw new IOException("Неожиданный код ответа HTTP: " + response.statusCode());
                 }
-                System.out.printf("Ready: %s (HTTP %d)%n", uri, response.statusCode());
+                System.out.printf("Сервис готов: %s (HTTP %d)%n", uri, response.statusCode());
                 return;
             } catch (IOException exception) {
                 lastError = exception;
                 Thread.sleep(500);
             }
         }
-        throw new IOException("Timed out waiting for " + uri, lastError);
+        throw new IOException("Истекло время ожидания сервиса " + uri, lastError);
     }
 
     private static void configurePayara(String[] args) throws Exception {
         if (args.length != 8) {
-            throw new IllegalArgumentException("Usage: java -jar web-client.jar configure-payara <domain.xml> <https-bind-address> <https-port> <disabled-http-port> <active-processors> <thread-stack-size> <max-heap>");
+            throw new IllegalArgumentException("Использование: java -jar web-client.jar configure-payara <domain.xml> <HTTPS-адрес> <HTTPS-порт> <отключённый-HTTP-порт> <процессоры> <размер-стека> <максимальная-куча>");
         }
         Path domainXml = Path.of(args[1]);
         String bindAddress = args[2];
         int httpsPort = validPort(args[3]);
         int httpPort = validPort(args[4]);
-        int activeProcessors = positiveInteger(args[5], "active processor count");
-        String threadStackSize = memorySize(args[6], "thread stack size");
-        String maxHeap = memorySize(args[7], "maximum heap");
+        int activeProcessors = positiveInteger(args[5], "количество активных процессоров");
+        String threadStackSize = memorySize(args[6], "размер стека потока");
+        String maxHeap = memorySize(args[7], "максимальный размер кучи");
 
         DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
         factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
@@ -283,7 +296,7 @@ public final class PortableClientServer {
         Document document = factory.newDocumentBuilder().parse(domainXml.toFile());
         Element serverConfig = namedElement(document.getElementsByTagName("config"), "server-config");
         if (serverConfig == null) {
-            throw new IllegalStateException("Payara server-config was not found in " + domainXml);
+            throw new IllegalStateException("Конфигурация Payara server-config не найдена в " + domainXml);
         }
 
         Element http = requiredNamedElement(serverConfig, "network-listener", "http-listener-1");
@@ -302,7 +315,7 @@ public final class PortableClientServer {
         Element httpsProtocol = requiredNamedElement(serverConfig, "protocol", "http-listener-2");
         NodeList sslNodes = httpsProtocol.getElementsByTagName("ssl");
         if (sslNodes.getLength() == 0) {
-            throw new IllegalStateException("Payara HTTPS ssl configuration was not found");
+            throw new IllegalStateException("Настройки HTTPS для Payara не найдены");
         }
         ((Element) sslNodes.item(0)).setAttribute("cert-nickname", "s1as");
 
@@ -313,7 +326,7 @@ public final class PortableClientServer {
         transformer.setOutputProperty(OutputKeys.INDENT, "yes");
         transformer.transform(new DOMSource(document), new StreamResult(temporary.toFile()));
         Files.move(temporary, domainXml, StandardCopyOption.REPLACE_EXISTING);
-        System.out.printf("Configured HTTPS-only Payara listeners in %s%n", domainXml);
+        System.out.printf("В файле %s настроены подключения Payara только по HTTPS%n", domainXml);
     }
 
     private static void configurePayaraResources(Document document, Element serverConfig,
@@ -338,7 +351,7 @@ public final class PortableClientServer {
 
         NodeList javaConfigs = serverConfig.getElementsByTagName("java-config");
         if (javaConfigs.getLength() == 0) {
-            throw new IllegalStateException("Payara java-config was not found");
+            throw new IllegalStateException("Конфигурация Payara java-config не найдена");
         }
         Element javaConfig = (Element) javaConfigs.item(0);
         NodeList options = javaConfig.getElementsByTagName("jvm-options");
@@ -373,7 +386,7 @@ public final class PortableClientServer {
     private static Element requiredNamedElement(Element parent, String tag, String name) {
         Element element = namedElement(parent.getElementsByTagName(tag), name);
         if (element == null) {
-            throw new IllegalStateException("Payara " + tag + " named " + name + " was not found");
+            throw new IllegalStateException("Элемент Payara " + tag + " с именем " + name + " не найден");
         }
         return element;
     }
@@ -388,19 +401,19 @@ public final class PortableClientServer {
 
     private static int validPort(String value) {
         int port = Integer.parseInt(value);
-        if (port < 1 || port > 65535) throw new IllegalArgumentException("Invalid TCP port: " + value);
+        if (port < 1 || port > 65535) throw new IllegalArgumentException("Некорректный TCP-порт: " + value);
         return port;
     }
 
     private static int positiveInteger(String value, String label) {
         int number = Integer.parseInt(value);
-        if (number < 1) throw new IllegalArgumentException("Invalid " + label + ": " + value);
+        if (number < 1) throw new IllegalArgumentException("Некорректное значение параметра «" + label + "»: " + value);
         return number;
     }
 
     private static String memorySize(String value, String label) {
         if (!value.matches("[1-9][0-9]*[kKmMgG]")) {
-            throw new IllegalArgumentException("Invalid " + label + ": " + value);
+            throw new IllegalArgumentException("Некорректное значение параметра «" + label + "»: " + value);
         }
         return value;
     }
@@ -439,8 +452,8 @@ public final class PortableClientServer {
 
     private static URI httpsUri(String value) {
         URI uri = URI.create(value.endsWith("/") ? value.substring(0, value.length() - 1) : value);
-        if (!uri.getScheme().equalsIgnoreCase("https")) {
-            throw new IllegalArgumentException("Only https:// upstream URLs are allowed: " + value);
+        if (!"https".equalsIgnoreCase(uri.getScheme())) {
+            throw new IllegalArgumentException("Адрес сервиса должен использовать протокол https://: " + value);
         }
         return uri;
     }
@@ -454,15 +467,37 @@ public final class PortableClientServer {
         return value == null || value.isBlank() ? defaultValue : value;
     }
 
-    private static String error(int status, String code, String message) {
-        return "{\"timestamp\":\"" + Instant.now() + "\",\"status\":" + status
-                + ",\"code\":\"" + code + "\",\"message\":\"" + message + "\"}";
+    static void error(HttpExchange exchange, int status, String code, String message) throws IOException {
+        exchange.getResponseHeaders().set("Content-Language", "ru");
+        json(exchange, status, "{\"timestamp\":" + jsonString(Instant.now().toString())
+                + ",\"status\":" + status + ",\"code\":" + jsonString(code)
+                + ",\"message\":" + jsonString(message)
+                + ",\"path\":" + jsonString(exchange.getRequestURI().getRawPath()) + "}");
+    }
+
+    private static String jsonString(String value) {
+        StringBuilder escaped = new StringBuilder("\"");
+        for (char character : value.toCharArray()) {
+            switch (character) {
+                case '"' -> escaped.append("\\\"");
+                case '\\' -> escaped.append("\\\\");
+                default -> {
+                    if (character < 0x20) escaped.append(String.format("\\u%04x", (int) character));
+                    else escaped.append(character);
+                }
+            }
+        }
+        return escaped.append('"').toString();
     }
 
     private static void json(HttpExchange exchange, int status, String body) throws IOException {
         byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
         Headers headers = exchange.getResponseHeaders();
         headers.set("Content-Type", "application/json; charset=utf-8");
+        if (exchange.getRequestMethod().equalsIgnoreCase("HEAD")) {
+            exchange.sendResponseHeaders(status, -1);
+            return;
+        }
         exchange.sendResponseHeaders(status, bytes.length);
         try (OutputStream output = exchange.getResponseBody()) {
             output.write(bytes);

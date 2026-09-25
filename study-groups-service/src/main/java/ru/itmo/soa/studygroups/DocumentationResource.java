@@ -9,6 +9,9 @@ import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 
+import ru.itmo.soa.error.ApiException;
+import ru.itmo.soa.error.ErrorCode;
+
 import java.io.InputStream;
 import java.util.Map;
 import java.util.Set;
@@ -43,12 +46,12 @@ public class DocumentationResource {
     @Path("webjars/swagger-ui/" + SWAGGER_VERSION + "/{file}")
     public Response swaggerAsset(@PathParam("file") String file) {
         if (!ASSETS.contains(file)) {
-            throw new ApiException(404, "ENDPOINT_NOT_FOUND", "Запрошенный URL не существует");
+            throw new ApiException(ErrorCode.ENDPOINT_NOT_FOUND);
         }
         InputStream input = getClass().getResourceAsStream(
                 "/META-INF/resources/webjars/swagger-ui/" + SWAGGER_VERSION + "/" + file);
         if (input == null) {
-            throw new ApiException(404, "ENDPOINT_NOT_FOUND", "Запрошенный URL не существует");
+            throw new ApiException(ErrorCode.ENDPOINT_NOT_FOUND);
         }
         String extension = file.substring(file.lastIndexOf('.') + 1);
         return Response.ok(input, MEDIA_TYPES.getOrDefault(extension, MediaType.APPLICATION_OCTET_STREAM)).build();
@@ -57,7 +60,7 @@ public class DocumentationResource {
     private Response webResource(String path, String mediaType) {
         InputStream input = servletContext.getResourceAsStream(path);
         if (input == null) {
-            throw new ApiException(404, "ENDPOINT_NOT_FOUND", "Запрошенный URL не существует");
+            throw new ApiException(ErrorCode.ENDPOINT_NOT_FOUND);
         }
         return Response.ok(input, mediaType).build();
     }

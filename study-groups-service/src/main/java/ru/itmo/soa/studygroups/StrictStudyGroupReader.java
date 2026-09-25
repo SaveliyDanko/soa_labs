@@ -12,6 +12,8 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.ext.MessageBodyReader;
 import jakarta.ws.rs.ext.Provider;
+import ru.itmo.soa.error.ApiException;
+import ru.itmo.soa.error.ErrorCode;
 import ru.itmo.soa.model.ApiModels.StudyGroupRequest;
 
 import java.io.IOException;
@@ -69,15 +71,12 @@ public class StrictStudyGroupReader implements MessageBodyReader<StudyGroupReque
 
     private void rejectUnknown(JsonObject object, Set<String> allowed, String prefix) {
         object.keySet().stream().filter(key -> !allowed.contains(key)).findFirst().ifPresent(key -> {
-            throw new ApiException(400, "MALFORMED_JSON",
-                    "Тело запроса содержит неизвестное поле '" + prefix + key + "'",
+            throw new ApiException(ErrorCode.MALFORMED_JSON,
                     Map.of("field", prefix + key));
         });
     }
 
     private ApiException malformed(RuntimeException cause) {
-        return new ApiException(400, "MALFORMED_JSON",
-                "Тело запроса содержит некорректный JSON или недопустимое значение enum",
-                Map.of(), Map.of(), cause);
+        return new ApiException(ErrorCode.MALFORMED_JSON, Map.of(), cause);
     }
 }
