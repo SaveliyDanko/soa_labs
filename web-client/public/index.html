@@ -7,7 +7,7 @@
     <meta name="description" content="Панель управления учебными группами и операциями ИСУ">
     <title>Study Groups — панель управления</title>
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
-    <link rel="stylesheet" href="styles.css?v=3">
+    <link rel="stylesheet" href="styles.css?v=4">
 </head>
 <body>
 <header class="app-bar">
@@ -189,7 +189,14 @@
             <legend>Администратор</legend>
             <div class="form-grid">
                 <label class="wide">Имя<input id="person-name" placeholder="Имя администратора"></label>
-                <label class="wide">Дата рождения <span>ISO 8601</span><input id="birthday" placeholder="1985-06-20T10:15:30+03:00[Europe/Moscow]"></label>
+                <div class="wide birthday-field">
+                    <span class="field-label">Дата рождения <small>день, месяц, год</small></span>
+                    <div class="birthday-inputs">
+                        <label>День<input id="birthday-day" type="number" inputmode="numeric" min="1" max="31" placeholder="ДД"></label>
+                        <label>Месяц<input id="birthday-month" type="number" inputmode="numeric" min="1" max="12" placeholder="ММ"></label>
+                        <label>Год<input id="birthday-year" type="number" inputmode="numeric" min="1" max="9999" placeholder="ГГГГ"></label>
+                    </div>
+                </div>
                 <label>Цвет волос<select id="hair-color"><option value="">Не указан</option></select></label>
                 <label>Гражданство<select id="nationality"></select></label>
             </div>
@@ -207,6 +214,6 @@
     </form>
 </dialog>
 
-    <script src="app.js?v=3" defer></script>
+    <script src="app.js?v=4" defer></script>
 </body>
 </html>

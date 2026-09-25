@@ -30,6 +30,23 @@ Payara и WildFly отключаются при конфигурации, а а�
 - распакованный Payara 6 (проверено с Payara 6.2025.11);
 - распакованный WildFly 39 (проверено с WildFly 39.0.1.Final).
 
+### Windows
+
+Скрипты подготовки и управления написаны для `bash`. На Windows запускайте их из
+WSL2 (предпочтительно) либо Git Bash; не из PowerShell. В WSL пути к дискам имеют
+вид `/mnt/c/...`, например:
+
+```bash
+cd /mnt/c/Users/admin/IdeaProjects/soa_labs
+PAYARA_SOURCE=/mnt/c/tools/payara6 \
+WILDFLY_SOURCE=/mnt/c/tools/wildfly-39.0.1.Final \
+./scripts/prepare-portable-deployment.sh
+```
+
+`scp` и `ssh` из WSL/Git Bash работают с Helios так же, как в примерах ниже.
+Сам Helios запускает только готовый portable runtime, поэтому на нём Maven,
+Docker и WSL не требуются.
+
 Исходный код можно получить из GitHub:
 
 ```bash

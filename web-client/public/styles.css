@@ -222,6 +222,7 @@ td strong { display: block; color: #252d40; }
 
 dialog { width: min(760px, calc(100% - 30px)); max-height: calc(100vh - 32px); padding: 0; border: 1px solid rgb(255 255 255 / 40%); border-radius: 19px; background: #fff; box-shadow: var(--shadow-lg); }
 dialog::backdrop { background: rgb(10 16 29 / 64%); backdrop-filter: blur(5px); }
+dialog > .notice { z-index: 1; top: 1rem; right: 1rem; }
 #group-form { padding: 1.55rem; }
 .dialog-heading { align-items: start; }
 .dialog-heading h2 { margin-bottom: 0; }
@@ -233,6 +234,11 @@ dialog::backdrop { background: rgb(10 16 29 / 64%); backdrop-filter: blur(5px); 
 legend { padding: 0 .45rem; color: #596579; font-size: .78rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
 .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .8rem; }
 .form-grid .wide { grid-column: 1 / -1; }
+.birthday-field { display: grid; gap: .42rem; }
+.field-label { color: #344054; font-size: .86rem; font-weight: 700; }
+.field-label small { margin-left: .28rem; color: var(--muted); font-size: .74rem; font-weight: 500; }
+.birthday-inputs { display: grid; grid-template-columns: .8fr .8fr 1.3fr; gap: .55rem; }
+.birthday-inputs label { display: grid; gap: .3rem; color: var(--muted); font-size: .76rem; font-weight: 650; }
 .switch-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin: 1rem 0 .75rem; padding: .8rem .9rem; border: 1px solid var(--border); border-radius: 11px; background: var(--surface-soft); }
 .switch-row > span { display: grid; gap: .1rem; }
 .switch-row strong { color: #344054; font-size: .87rem; }

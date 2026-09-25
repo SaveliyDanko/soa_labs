@@ -68,6 +68,8 @@ async function api(url, options = {}) {
 
 function showNotice(message, error = false) {
     const notice = byId('notice');
+    const dialog = byId('group-dialog');
+    if (dialog.open) dialog.append(notice);
     notice.textContent = message;
     notice.classList.toggle('error', error);
     notice.setAttribute('role', error ? 'alert' : 'status');
@@ -280,6 +282,27 @@ function resetEditor() {
     toggleLocation();
 }
 
+function setBirthdayFields(value) {
+    const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value || '');
+    byId('birthday-day').value = match ? Number(match[3]) : '';
+    byId('birthday-month').value = match ? Number(match[2]) : '';
+    byId('birthday-year').value = match ? Number(match[1]) : '';
+}
+
+function birthdayValue() {
+    const values = ['birthday-day', 'birthday-month', 'birthday-year'].map(id => byId(id).value.trim());
+    if (values.every(value => !value)) return null;
+    if (values.some(value => !value)) {
+        throw new Error('Укажите дату рождения полностью: день, месяц и год.');
+    }
+    const [day, month, year] = values.map(Number);
+    const date = new Date(Date.UTC(year, month - 1, day));
+    if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) {
+        throw new Error('Укажите существующую дату рождения.');
+    }
+    return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T00:00:00+03:00[Europe/Moscow]`;
+}
+
 function openEditor(group = null) {
     resetEditor();
     if (group) {
@@ -295,7 +318,7 @@ function openEditor(group = null) {
         toggleAdmin();
         if (group.groupAdmin) {
             byId('person-name').value = group.groupAdmin.name;
-            byId('birthday').value = group.groupAdmin.birthday || '';
+            setBirthdayFields(group.groupAdmin.birthday);
             byId('hair-color').value = group.groupAdmin.hairColor || '';
             byId('nationality').value = group.groupAdmin.nationality;
             byId('has-location').checked = Boolean(group.groupAdmin.location);
@@ -343,7 +366,8 @@ function formPayload() {
             name: byId('person-name').value.trim(),
             nationality: byId('nationality').value
         };
-        if (byId('birthday').value) payload.groupAdmin.birthday = byId('birthday').value.trim();
+        const birthday = birthdayValue();
+        if (birthday) payload.groupAdmin.birthday = birthday;
         if (byId('hair-color').value) payload.groupAdmin.hairColor = byId('hair-color').value;
         if (byId('has-location').checked) {
             payload.groupAdmin.location = {
@@ -438,6 +462,11 @@ byId('next-page').onclick = () => {
 };
 byId('new-group').onclick = () => openEditor();
 byId('close-dialog').onclick = byId('cancel-dialog').onclick = () => byId('group-dialog').close();
+byId('group-dialog').addEventListener('close', () => {
+    const notice = byId('notice');
+    document.querySelector('.app-shell').prepend(notice);
+    notice.hidden = true;
+});
 byId('has-admin').onchange = () => { toggleAdmin(); toggleLocation(); };
 byId('has-location').onchange = toggleLocation;
 byId('group-form').addEventListener('submit', saveGroup);
