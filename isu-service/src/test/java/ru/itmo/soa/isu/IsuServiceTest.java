@@ -16,8 +16,7 @@ class IsuServiceTest {
     @Test
     void invokesFirstServiceForBothCompositeOperations() {
         FakeClient client = new FakeClient();
-        IsuService service = new IsuService();
-        service.client = client;
+        IsuService service = new IsuService(client);
 
         StudyGroup updated = service.changeEducationForm(7, FormOfEducation.EVENING_CLASSES);
         assertEquals(FormOfEducation.EVENING_CLASSES, updated.getFormOfEducation());

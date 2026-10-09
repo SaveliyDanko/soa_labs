@@ -19,13 +19,20 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class StudyGroupServiceTest {
     private StudyGroupService service;
+    private org.springframework.jdbc.datasource.embedded.EmbeddedDatabase database;
 
     @BeforeEach
     void setUp() {
-        service = new StudyGroupService();
-        service.store = new StudyGroupStore();
-        service.query = new StudyGroupQuery();
+        database = new org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder()
+                .generateUniqueName(true).setType(org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType.H2)
+                .addScript("schema.sql").build();
+        StudyGroupStore store = new StudyGroupStore(new org.springframework.jdbc.core.JdbcTemplate(database),
+                new com.fasterxml.jackson.databind.ObjectMapper().registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule()));
+        service = new StudyGroupService(store, new StudyGroupQuery());
     }
+
+    @org.junit.jupiter.api.AfterEach
+    void close() { database.shutdown(); }
 
     @Test
     void supportsCrudAndKeepsGeneratedFields() {

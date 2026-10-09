@@ -1,0 +1,55 @@
+server:
+  port: 8080
+eureka:
+  client:
+    register-with-eureka: false
+    service-url:
+      defaultZone: ${EUREKA_URL:http://localhost:8761/eureka/}
+    registry-fetch-interval-seconds: 3
+zuul:
+  ignored-services: '*'
+  ignored-headers: Access-Control-Allow-Origin,Access-Control-Allow-Credentials,Access-Control-Allow-Methods,Access-Control-Allow-Headers,Access-Control-Expose-Headers
+  sensitive-headers: Cookie,Set-Cookie
+  retryable: false
+  host:
+    connect-timeout-millis: 4000
+    socket-timeout-millis: 15000
+  routes:
+    study-groups:
+      path: /api/study-groups/**
+      service-id: study-groups-service
+      strip-prefix: false
+    isu:
+      path: /isu/**
+      url: ${ISU_BALANCER_URL:http://localhost:9000}
+      strip-prefix: false
+    openapi:
+      path: /openapi.yaml
+      service-id: study-groups-service
+      strip-prefix: false
+    swagger:
+      path: /swagger-ui.html
+      service-id: study-groups-service
+      strip-prefix: false
+    webjars:
+      path: /webjars/**
+      service-id: study-groups-service
+      strip-prefix: false
+study-groups-service:
+  ribbon:
+    NFLoadBalancerRuleClassName: com.netflix.loadbalancer.RoundRobinRule
+    ServerListRefreshInterval: 3000
+    ConnectTimeout: 3000
+    ReadTimeout: 8000
+    MaxAutoRetries: 0
+    MaxAutoRetriesNextServer: 0
+hystrix:
+  command:
+    default:
+      execution:
+        timeout:
+          enabled: false
+ribbon:
+  eager-load:
+    enabled: true
+    clients: study-groups-service

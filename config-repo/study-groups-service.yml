@@ -1,0 +1,20 @@
+server:
+  port: 8181
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/study_groups}
+    username: ${DB_USER:soa}
+    password: ${DB_PASSWORD:soa-lab}
+    initialization-mode: never
+    hikari:
+      maximum-pool-size: 5
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_URL:http://localhost:8761/eureka/}
+    registry-fetch-interval-seconds: 3
+  instance:
+    instance-id: ${lab.instance-id}
+    prefer-ip-address: true
+    lease-renewal-interval-in-seconds: 3
+    lease-expiration-duration-in-seconds: 10

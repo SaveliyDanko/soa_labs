@@ -26,6 +26,7 @@ public enum ErrorCode {
     INTERNAL_SERVER_ERROR(500, "Внутренняя ошибка сервера"),
     UPSTREAM_BAD_RESPONSE(502, "Сервис учебных групп вернул некорректный ответ"),
     STUDY_GROUPS_SERVICE_UNAVAILABLE(503, "Сервис учебных групп временно недоступен"),
+    UPSTREAM_UNAVAILABLE(503, "Сервис временно недоступен"),
     HTTP_ERROR(500, "Не удалось обработать HTTP-запрос");
 
     private final int status;
@@ -40,17 +41,17 @@ public enum ErrorCode {
     public String message() { return message; }
 
     public static ErrorCode forHttpStatus(int status) {
-        return switch (status) {
-            case 400 -> BAD_REQUEST;
-            case 401 -> UNAUTHORIZED;
-            case 403 -> FORBIDDEN;
-            case 404 -> ENDPOINT_NOT_FOUND;
-            case 405 -> METHOD_NOT_ALLOWED;
-            case 406 -> NOT_ACCEPTABLE;
-            case 409 -> DATA_INTEGRITY_VIOLATION;
-            case 415 -> UNSUPPORTED_MEDIA_TYPE;
-            case 500 -> INTERNAL_SERVER_ERROR;
-            default -> HTTP_ERROR;
-        };
+        switch (status) {
+            case 400: return BAD_REQUEST;
+            case 401: return UNAUTHORIZED;
+            case 403: return FORBIDDEN;
+            case 404: return ENDPOINT_NOT_FOUND;
+            case 405: return METHOD_NOT_ALLOWED;
+            case 406: return NOT_ACCEPTABLE;
+            case 409: return DATA_INTEGRITY_VIOLATION;
+            case 415: return UNSUPPORTED_MEDIA_TYPE;
+            case 500: return INTERNAL_SERVER_ERROR;
+            default: return HTTP_ERROR;
+        }
     }
 }

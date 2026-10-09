@@ -1,7 +1,7 @@
 package ru.itmo.soa.studygroups;
 
-import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.inject.Inject;
+import org.springframework.stereotype.Service;
+import java.util.stream.Collectors;
 import ru.itmo.soa.error.ApiException;
 import ru.itmo.soa.error.ErrorCode;
 import ru.itmo.soa.model.ApiModels.CountResult;
@@ -13,13 +13,15 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 
-@ApplicationScoped
+@Service
 public class StudyGroupService {
-    @Inject
-    StudyGroupStore store;
+    private final StudyGroupStore store;
+    private final StudyGroupQuery query;
 
-    @Inject
-    StudyGroupQuery query;
+    public StudyGroupService(StudyGroupStore store, StudyGroupQuery query) {
+        this.store = store;
+        this.query = query;
+    }
 
     public StudyGroup create(StudyGroupRequest request) { return store.create(request); }
     public StudyGroup get(int id) { return store.find(id); }
@@ -57,6 +59,6 @@ public class StudyGroupService {
         return store.snapshot().stream()
                 .filter(group -> group.getName().toLowerCase(Locale.ROOT).contains(needle))
                 .sorted(Comparator.comparing(StudyGroup::getId))
-                .toList();
+                .collect(Collectors.toList());
     }
 }

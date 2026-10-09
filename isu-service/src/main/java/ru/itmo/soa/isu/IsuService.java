@@ -1,16 +1,16 @@
 package ru.itmo.soa.isu;
 
-import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.inject.Inject;
+import org.springframework.stereotype.Service;
 import ru.itmo.soa.model.ApiModels.ActionResult;
 import ru.itmo.soa.model.ApiModels.FormOfEducation;
 import ru.itmo.soa.model.ApiModels.StudyGroup;
 import ru.itmo.soa.model.ApiModels.StudyGroupRequest;
 
-@ApplicationScoped
+@Service
 public class IsuService {
-    @Inject
-    StudyGroupsClient client;
+    private final StudyGroupsClient client;
+
+    public IsuService(StudyGroupsClient client) { this.client = client; }
 
     public ActionResult expelAll(int groupId) {
         client.delete(groupId);

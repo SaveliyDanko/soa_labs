@@ -18,6 +18,7 @@ import ru.itmo.soa.model.ApiModels.StudyGroupRequest;
 import java.time.Instant;
 import java.time.ZonedDateTime;
 import java.util.List;
+import java.util.stream.Collectors;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -73,7 +74,7 @@ class StudyGroupQueryTest {
 
         assertEquals(expectedIds, String.join("|", query.apply(groups,
                         List.of("studentsCount:" + operator + ":" + value), List.of()).stream()
-                .map(group -> group.getId().toString()).toList()));
+                .map(group -> group.getId().toString()).collect(Collectors.toList())));
     }
 
     @ParameterizedTest
@@ -182,6 +183,6 @@ class StudyGroupQueryTest {
     }
 
     private List<Integer> ids(List<StudyGroup> groups) {
-        return groups.stream().map(StudyGroup::getId).toList();
+        return groups.stream().map(StudyGroup::getId).collect(Collectors.toList());
     }
 }

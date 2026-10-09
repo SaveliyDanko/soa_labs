@@ -1,6 +1,7 @@
 package ru.itmo.soa.studygroups;
 
-import jakarta.enterprise.context.ApplicationScoped;
+import org.springframework.stereotype.Component;
+import java.util.stream.Collectors;
 import ru.itmo.soa.error.ApiException;
 import ru.itmo.soa.error.ErrorCode;
 import ru.itmo.soa.model.ApiModels.Color;
@@ -21,10 +22,18 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
-@ApplicationScoped
+@Component
 public class StudyGroupQuery {
-    private record Field<T extends Comparable<? super T>>(
-            Class<T> type, Function<StudyGroup, T> value, Function<String, T> parser) {
+    private static final class Field<T extends Comparable<? super T>> {
+        private final Class<T> type;
+        private final Function<StudyGroup, T> value;
+        private final Function<String, T> parser;
+
+        Field(Class<T> type, Function<StudyGroup, T> value, Function<String, T> parser) {
+            this.type = type;
+            this.value = value;
+            this.parser = parser;
+        }
 
         T parse(String raw) {
             try {
@@ -43,15 +52,15 @@ public class StudyGroupQuery {
                 if (actual == null) return false;
                 if (needle != null) return actual.toString().toLowerCase(Locale.ROOT).contains(needle);
                 int compared = actual.compareTo(expected);
-                return switch (operator) {
-                    case "eq" -> compared == 0;
-                    case "ne" -> compared != 0;
-                    case "gt" -> compared > 0;
-                    case "ge" -> compared >= 0;
-                    case "lt" -> compared < 0;
-                    case "le" -> compared <= 0;
-                    default -> false;
-                };
+                switch (operator) {
+                    case "eq": return compared == 0;
+                    case "ne": return compared != 0;
+                    case "gt": return compared > 0;
+                    case "ge": return compared >= 0;
+                    case "lt": return compared < 0;
+                    case "le": return compared <= 0;
+                    default: return false;
+                }
             };
         }
 
@@ -74,7 +83,7 @@ public class StudyGroupQuery {
                 .reduce(Comparator::thenComparing)
                 .orElse(BY_ID)
                 .thenComparing(BY_ID);
-        return source.stream().filter(predicate).sorted(comparator).toList();
+        return source.stream().filter(predicate).sorted(comparator).collect(Collectors.toList());
     }
 
     private Predicate<StudyGroup> parseFilter(String raw) {
@@ -90,7 +99,7 @@ public class StudyGroupQuery {
         if (!OPERATORS.contains(operator)) {
             throw new ApiException(ErrorCode.INVALID_FILTER_OPERATOR, Map.of("operator", operator));
         }
-        if (operator.equals("contains") && field.type() != String.class) {
+        if (operator.equals("contains") && field.type != String.class) {
             throw new ApiException(ErrorCode.INVALID_FILTER_OPERATOR,
                     Map.of("field", parts[0], "operator", operator));
         }

@@ -1,9 +1,9 @@
 package ru.itmo.soa.model;
 
-import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Positive;
+import javax.validation.Valid;
+import javax.validation.constraints.NotBlank;
+import javax.validation.constraints.NotNull;
+import javax.validation.constraints.Positive;
 
 import java.time.Instant;
 import java.time.ZonedDateTime;
@@ -15,7 +15,7 @@ import static ru.itmo.soa.error.ValidationMessages.NOT_BLANK;
 import static ru.itmo.soa.error.ValidationMessages.POSITIVE;
 import static ru.itmo.soa.error.ValidationMessages.REQUIRED;
 
-/** Shared JSON-B compatible models used by both Jakarta REST services. */
+/** Общий JSON-контракт обеих лабораторных служб. */
 public final class ApiModels {
     private ApiModels() {}
 

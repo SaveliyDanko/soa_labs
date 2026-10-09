@@ -1,0 +1,23 @@
+# Общие настройки выдаются Config Service всем трём приложениям.
+lab:
+  config-source: spring-cloud-config
+  instance-id: ${spring.application.name}:${server.port}
+server:
+  forward-headers-strategy: framework
+  error:
+    include-message: never
+    include-stacktrace: never
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+spring:
+  cloud:
+    config:
+      # Порт и идентификатор реплики задаются окружением, остальное — централизованно.
+      allow-override: true
+      override-system-properties: false
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false

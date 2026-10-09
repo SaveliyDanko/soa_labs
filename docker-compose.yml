@@ -1,36 +1,132 @@
-services:
-  payara:
-    build:
-      context: .
-      dockerfile: docker/payara/Dockerfile
-    ports:
-      - "${PAYARA_HTTPS_PORT:-8181}:8181"
-    restart: unless-stopped
+name: soa-lab3
 
-  wildfly:
-    build:
-      context: .
-      dockerfile: docker/wildfly/Dockerfile
+x-java: &java
+  restart: unless-stopped
+  environment: &java-env
+    CONFIG_SERVER_URL: http://config-service:8888
+    EUREKA_URL: http://discovery-service:8761/eureka/
+  healthcheck:
+    test: ["CMD-SHELL", "curl -fsS http://localhost:$${SERVER_PORT:-8080}/actuator/health || exit 1"]
+    interval: 5s
+    timeout: 4s
+    retries: 30
+    start_period: 30s
+
+services:
+  postgres:
+    image: postgres:16-alpine
     environment:
-      STUDY_GROUPS_BASE_URL: https://payara:8181
-      STUDY_GROUPS_TRUSTSTORE: /opt/jboss/wildfly/standalone/configuration/truststore.p12
-      STUDY_GROUPS_TRUSTSTORE_PASSWORD: changeit
-    ports:
-      - "${WILDFLY_HTTPS_PORT:-8443}:8443"
+      POSTGRES_DB: study_groups
+      POSTGRES_USER: soa
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-soa-lab}
+    volumes:
+      - study-groups-data:/var/lib/postgresql/data
+      - ./study-groups-service/src/main/resources/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U soa -d study_groups"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  config-service:
+    <<: *java
+    build: {context: ., dockerfile: docker/spring/Dockerfile, args: {MODULE: config-service}}
+    environment:
+      SERVER_PORT: 8888
+      CONFIG_REPO: file:/config-repo
+    volumes: ["./config-repo:/config-repo:ro"]
+    ports: ["127.0.0.1:${CONFIG_PORT:-8888}:8888"]
+
+  discovery-service:
+    <<: *java
+    build: {context: ., dockerfile: docker/spring/Dockerfile, args: {MODULE: discovery-service}}
+    environment:
+      SERVER_PORT: 8761
+    ports: ["127.0.0.1:${EUREKA_PORT:-8761}:8761"]
+
+  study-groups-1:
+    <<: *java
+    build: {context: ., dockerfile: docker/spring/Dockerfile, args: {MODULE: study-groups-service}}
+    environment:
+      <<: *java-env
+      SERVER_PORT: 8181
+      LAB_INSTANCE_ID: study-groups-1
+      DB_URL: jdbc:postgresql://postgres:5432/study_groups
+      DB_PASSWORD: ${DB_PASSWORD:-soa-lab}
     depends_on:
-      - payara
-    restart: unless-stopped
+      postgres: {condition: service_healthy}
+      config-service: {condition: service_healthy}
+      discovery-service: {condition: service_healthy}
+
+  study-groups-2:
+    <<: *java
+    build: {context: ., dockerfile: docker/spring/Dockerfile, args: {MODULE: study-groups-service}}
+    environment:
+      <<: *java-env
+      SERVER_PORT: 8182
+      LAB_INSTANCE_ID: study-groups-2
+      DB_URL: jdbc:postgresql://postgres:5432/study_groups
+      DB_PASSWORD: ${DB_PASSWORD:-soa-lab}
+    depends_on:
+      postgres: {condition: service_healthy}
+      config-service: {condition: service_healthy}
+      discovery-service: {condition: service_healthy}
+
+  isu-1:
+    <<: *java
+    build: {context: ., dockerfile: docker/spring/Dockerfile, args: {MODULE: isu-service}}
+    environment:
+      <<: *java-env
+      SERVER_PORT: 8281
+      LAB_INSTANCE_ID: isu-1
+      GATEWAY_URL: http://api-gateway:8080
+    depends_on:
+      config-service: {condition: service_healthy}
+
+  isu-2:
+    <<: *java
+    build: {context: ., dockerfile: docker/spring/Dockerfile, args: {MODULE: isu-service}}
+    environment:
+      <<: *java-env
+      SERVER_PORT: 8282
+      LAB_INSTANCE_ID: isu-2
+      GATEWAY_URL: http://api-gateway:8080
+    depends_on:
+      config-service: {condition: service_healthy}
+
+  isu-haproxy:
+    image: haproxy:3.0-alpine
+    volumes: ["./docker/haproxy/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro"]
+    ports: ["127.0.0.1:${HAPROXY_STATS_PORT:-9001}:9001"]
+    depends_on:
+      isu-1: {condition: service_healthy}
+      isu-2: {condition: service_healthy}
+
+  api-gateway:
+    <<: *java
+    build: {context: ., dockerfile: docker/spring/Dockerfile, args: {MODULE: api-gateway}}
+    environment:
+      <<: *java-env
+      SERVER_PORT: 8080
+      ISU_BALANCER_URL: http://isu-haproxy:9000
+    depends_on:
+      config-service: {condition: service_healthy}
+      discovery-service: {condition: service_healthy}
+      study-groups-1: {condition: service_healthy}
+      study-groups-2: {condition: service_healthy}
+      isu-haproxy: {condition: service_started}
 
   client:
-    build:
-      context: .
-      dockerfile: web-client/Dockerfile
+    build: {context: ., dockerfile: web-client/Dockerfile}
     volumes:
       - ./docker/tls/server.crt:/etc/nginx/tls/server.crt:ro
       - ./docker/tls/server.key:/etc/nginx/tls/server.key:ro
     ports:
       - "${CLIENT_HTTPS_PORT:-3000}:443"
+      - "${PAYARA_HTTPS_PORT:-8181}:443"
+      - "${WILDFLY_HTTPS_PORT:-8443}:443"
     depends_on:
-      - payara
-      - wildfly
-    restart: unless-stopped
+      api-gateway: {condition: service_healthy}
+
+volumes:
+  study-groups-data:

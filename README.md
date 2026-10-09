@@ -1,167 +1,160 @@
-# Study Groups & ISU
+# Лабораторная работа №3 — Study Groups & ISU
 
-Лабораторная реализация состоит из двух независимых JAX-RS-сервисов и браузерного
-клиента. Spring в проекте не используется.
+Основа: lab-2, ветка `feature/payara-wildfly`, коммит `55d081b`.
+Оба сервиса перенесены с Jakarta EE на Spring Boot; контракт предыдущих
+лабораторных, браузерный клиент и OpenAPI сохранены.
 
-| Компонент | Среда | Публичный HTTPS URL по умолчанию |
-|---|---|---|
-| `study-groups-service` | Payara 6 / Jakarta EE 10 | `https://localhost:8181/api/study-groups` |
-| `isu-service` | WildFly 39 / Jakarta EE 10 | `https://localhost:8443/isu` |
-| `web-client` | автономный Java 17 HTTPS-сервер + HTML/CSS/JavaScript | `https://localhost:3000` |
+## Архитектура
 
-Модуль `common-api` содержит общий JSON-контракт, каталог ошибок, обработчики
-исключений и проверку параметров. Первый сервис хранит коллекцию в
-потокобезопасном application-scoped хранилище; данные живут до перезапуска Payara.
-ID и `creationDate` генерируются исключительно сервером.
+```text
+Браузер — HTTPS → Nginx (клиент и TLS) → Zuul API Gateway
+                                        ├─ Ribbon + Eureka
+                                        │   ├─ study-groups-1:8181 ─┐
+                                        │   └─ study-groups-2:8182 ─┴─ PostgreSQL
+                                        └─ HAProxy:9000
+                                            ├─ isu-1:8281
+                                            └─ isu-2:8282
+                                                   └─ Zuul → study-groups
 
-## Что реализовано
-
-- CRUD для `StudyGroup` с кодами `201`, `200`, `204`, `400`, `404`, `415` и `422`;
-- фильтрация по любому полю из спецификации, несколько `filter` объединяются через AND;
-- многоуровневая сортировка повторяемым параметром `sort`;
-- пагинация `page`/`size` и детерминированный порядок;
-- максимум `groupAdmin`, подсчёт администраторов и поиск по подстроке имени;
-- операции ISU `expel-all` и `change-edu-form`, которые действительно вызывают первый сервис по HTTPS;
-- JSON-ошибки со стабильным `code`, `details` или `violations`;
-- строгий JSON: неизвестные поля не игнорируются;
-- CORS/preflight для прямых вызовов API;
-- Swagger UI с документацией обоих сервисов;
-- единый клиент для всех операций API, включая произвольные sort/filter и пагинацию.
-
-## Запуск без Docker
-
-На целевой машине нужен только полный JDK 17+ и стандартный `bash`. Payara и
-WildFly передаются туда уже распакованными; Maven, Docker и доступ в интернет на
-сервере не нужны.
-
-На машине сборки укажите каталоги заранее распакованных Payara и WildFly:
-
-```bash
-PAYARA_SOURCE=/opt/payara6 \
-WILDFLY_SOURCE=/opt/wildfly-39 \
-./scripts/prepare-portable-deployment.sh
+Config Server:8888 → общие настройки, study-groups, ISU, Gateway
+Eureka:8761       ← регистрация обоих экземпляров study-groups
 ```
 
-Скрипт собирает два WAR и Java-клиент, генерирует самоподписанный сертификат и
-создаёт переносимый каталог `dist/soa-lab-runtime`. В нём уже находятся оба
-application server, артефакты, TLS-конфигурация и скрипты управления. Скопируйте
-этот каталог целиком, отредактируйте `config/runtime.env` и запустите:
+| Требование | Реализация |
+|---|---|
+| Config Service | Spring Cloud Config Server, файловый native-репозиторий `config-repo/` |
+| Service Discovery | Eureka; регистрация, heartbeat и динамический список экземпляров |
+| Load Balancer вызываемого сервиса | Ribbon в Zuul, правило RoundRobinRule |
+| API Gateway | Zuul; API, Swagger и межсервисные вызовы проходят через него |
+| Вызывающий сервис на Spring Boot | Два процесса ISU, порты 8281 и 8282 |
+| Балансировка вызывающего сервиса | HAProxy, roundrobin и HTTP health checks |
+| Согласованность экземпляров | Общая PostgreSQL вместо отдельных коллекций в памяти |
 
-```bash
-./bin/start.sh
-```
+Используются Java 11, Spring Boot 2.3.12.RELEASE и Spring Cloud Hoxton.SR12.
+Это намеренно совместимая legacy-линейка: требуемые заданием Ribbon и Zuul 1
+не входят в современные версии Spring Cloud. Для учебного стенда, не для
+публикации в интернете. Совместимость линейки описана в
+[релизе Hoxton.SR12](https://spring.io/blog/2021/07/07/spring-cloud-hoxton-sr12-has-been-released/).
 
-При первом запуске автоматически создаётся отдельный домен Payara и офлайн
-настраиваются HTTPS-listener'ы обоих серверов. Повторный запуск идемпотентен.
-Доступны команды `stop.sh`, `restart.sh`, `status.sh` и `logs.sh` в том же
-каталоге `bin`.
+## Запуск
 
-В `config/runtime.env` включён профиль для серверов с жёсткими квотами:
-небольшие heap и стеки потоков, `ActiveProcessorCount=2`, ограниченные пулы
-Payara/WildFly и отключённый Hazelcast. Это предотвращает
-`OutOfMemoryError: unable to create native thread`, который относится к
-нативным потокам и лимитам ОС, а не к переполнению Java heap.
-
-После запуска доступны:
-
-- клиент: <https://localhost:3000/>;
-- Swagger UI: <https://localhost:3000/swagger-ui.html>;
-- Payara API: <https://localhost:8181/api/study-groups>;
-- WildFly API: <https://localhost:8443/isu>.
-
-HTTP-listener'ы Payara и WildFly отключены, а административные listener'ы доступны
-только через loopback. Дополнительно `web.xml` обоих WAR требует `CONFIDENTIAL`
-transport guarantee. Браузеру нужно один раз доверить
-`config/tls/server.crt` из переносимого каталога.
-
-Проверка запущенного стенда:
-
-```bash
-./scripts/smoke-test.sh
-```
-
-Остановка:
-
-```bash
-./bin/stop.sh
-```
-
-Подробная инструкция для Helios находится в [`DEPLOY_HELIOS.md`](DEPLOY_HELIOS.md).
-
-## Локальный запуск через Docker (необязательно)
-
-Контейнерный способ оставлен для разработки и интеграционных проверок:
+Нужны Docker с Compose v2+ (BuildKit) и OpenSSL. Maven и JDK на хосте не нужны:
+Docker собирает JAR и выполняет Java-тесты под Java 11.
+Для скрипта интеграционной проверки нужен Python 3 без сторонних пакетов.
 
 ```bash
 ./scripts/start-local.sh
 ./scripts/smoke-test.sh
+```
+
+Первая сборка скачивает образы и Maven-зависимости. Запуск ждёт готовности
+сервисов; первоначальная регистрация в Eureka может занять ещё несколько секунд.
+Для самоподписанного сертификата разрешите открытие localhost в браузере.
+
+| Назначение | URL по умолчанию |
+|---|---|
+| Клиент | https://localhost:3000/ |
+| Swagger | https://localhost:3000/swagger-ui.html |
+| API групп | https://localhost:3000/api/study-groups |
+| ISU | https://localhost:3000/isu |
+| Совместимый адрес lab-2, группы | https://localhost:8181/api/study-groups |
+| Совместимый адрес lab-2, ISU | https://localhost:8443/isu |
+| Eureka (только loopback) | http://localhost:8761/ |
+| Config Server (только loopback) | http://localhost:8888/study-groups-service/default |
+| Статистика HAProxy (только loopback) | http://localhost:9001/stats |
+
+Порты 3000, 8181 и 8443 ведут в один HTTPS-вход, далее — в Zuul.
+Порты экземпляров, PostgreSQL и самого Zuul на хост **не публикуются**.
+Внутри Docker-сети используется HTTP; TLS завершается на Nginx.
+Административные endpoints Config/Eureka/HAProxy не являются публичным API.
+Имена переменных `PAYARA_HTTPS_PORT` и `WILDFLY_HTTPS_PORT` сохранены только
+для совместимости настроек запуска; серверов Payara/WildFly в lab-3 нет.
+
+Настройка портов: `CLIENT_HTTPS_PORT`, `PAYARA_HTTPS_PORT`,
+`WILDFLY_HTTPS_PORT`, `CONFIG_PORT`, `EUREKA_PORT`, `HAPROXY_STATS_PORT`.
+Пароль БД: `DB_PASSWORD` (учебное значение по умолчанию `soa-lab`).
+Пароль при повторном запуске должен соответствовать уже созданной БД.
+
+```bash
+docker compose ps
+docker compose logs -f api-gateway study-groups-1 isu-1
 docker compose down
 ```
 
-Он требует Maven 3.9+, Docker и Docker Compose.
+Обычный `down` сохраняет данные в именованном томе PostgreSQL.
+Не используйте `down -v`, если данные нужно сохранить.
 
-## API
+## Проверка компонентов и отказоустойчивости
 
-Исходная спецификация: [`src/main/resources/static/openapi.yaml`](src/main/resources/static/openapi.yaml).
+```bash
+# Контракт API, Config, Eureka, обе балансировки, общая БД, CORS и Swagger
+python3 scripts/verify-lab3.py
 
-Сортировка задаётся как `field,asc` или `field,desc`; параметр можно повторять:
+# Дополнительно: отключение отдельных реплик и полный отказ upstream
+python3 scripts/verify-lab3.py --failover
+```
+
+Скрипт создаёт только собственные тестовые группы и удаляет их при завершении.
+Режим `--failover` временно останавливает в том числе обе реплики сервиса:
+запускайте его только на тестовом стенде, где допустимо прерывание API.
+Остановленные экземпляры восстанавливаются в блоках `finally`.
+Ответы прикладных сервисов содержат `X-Service-Instance`;
+`X-Config-Source: spring-cloud-config` подтверждает получение общей настройки,
+`X-Gateway: zuul` — прохождение через gateway.
+По серии запросов видны обе реплики каждой пары. При выключении реплики
+Eureka/Ribbon обновляют реестр не мгновенно; скрипт учитывает время сходимости.
+HAProxy и Nginx повторно разрешают имена через Docker DNS, поэтому смена IP
+после перезапуска контейнеров не требует перезапуска балансировщиков.
+Автоматические повторные попытки Ribbon отключены, чтобы POST/PUT/DELETE
+не выполнялись повторно при неопределённом результате сетевого запроса.
+
+Центральные настройки находятся в `config-repo/*.yml`; при запуске клиенты
+обращаются к Config Server и завершаются с ошибкой при его недоступности.
+Config Server разрешает переопределять значения переменными окружения: это
+позволяет задать отдельный порт и идентификатор каждой реплики.
+После изменения файлов перезапустите потребителей:
+`docker compose restart study-groups-1 study-groups-2 isu-1 isu-2 api-gateway`.
+Автоматическое горячее обновление через Bus не реализовано и заданием не требуется.
+
+## Совместимость API
+
+Спецификация: [openapi.yaml](src/main/resources/static/openapi.yaml).
+Сохранены CRUD, пагинация, повторяемые sort/filter, специальные операции и ISU.
+ID и creationDate назначает сервер; обновление не меняет дату создания.
+Данные доступны через любую реплику и сохраняются после перезапуска.
 
 ```text
 GET /api/study-groups?sort=formOfEducation,asc&sort=studentsCount,desc
-```
-
-Фильтр имеет вид `field:operator:value`. Допустимы `eq`, `ne`, `gt`, `ge`, `lt`,
-`le`, `contains`; несколько фильтров объединяются логическим AND:
-
-```text
 GET /api/study-groups?page=0&size=10&filter=name:contains:math&filter=studentsCount:ge:10
+POST /isu/group/{id}/expel-all
+POST /isu/group/{id}/change-edu-form/{newForm}
 ```
 
-Поддерживаются поля `id`, `name`, `coordinates.x`, `coordinates.y`,
-`creationDate`, `studentsCount`, `formOfEducation`, `semesterEnum`,
-`groupAdmin.name`, `groupAdmin.birthday`, `groupAdmin.hairColor`,
-`groupAdmin.nationality`, `groupAdmin.location.x`, `groupAdmin.location.y` и
-`groupAdmin.location.z`.
+Общий `common-api` задаёт строгую JSON-сериализацию, валидацию, CORS и
+обработчики Spring MVC. Ошибки имеют поля `timestamp`, `status`, `code`,
+`message`, `path` и при необходимости `details`/`violations`.
+Человекочитаемые сообщения — на русском, включая сетевые сбои;
+HTTP-заголовок `Content-Language: ru`. Некорректный JSON: 400,
+нарушения модели: 422, отсутствие группы: 404, недоступный upstream: 503.
+Стектрейсы не возвращаются клиенту.
 
-## Обработка ошибок
+Браузерный клиент использует same-origin адреса: preflight в таком случае
+не нужен. При обращении с другого origin OPTIONS обрабатывается на gateway.
 
-Обработка ошибок сосредоточена в пакете `ru.itmo.soa.error` модуля `common-api`:
+## Тесты без запуска стенда
 
-- `ErrorCode` задаёт HTTP-статус, стабильный код и сообщение на русском языке;
-- `ApiException` содержит детали ошибки или нарушения ограничений полей;
-- `RequestValidation` одинаково проверяет параметры обоих сервисов;
-- `ErrorResponseFilter` приводит готовые ошибки контейнера к общему JSON-формату;
-- `ApiApplication` явно регистрирует общие обработчики в обоих JAX-RS-приложениях.
-
-В ресурсах и бизнес-логике достаточно указать код и детали:
-
-```java
-throw new ApiException(ErrorCode.STUDY_GROUP_NOT_FOUND, Map.of("id", Integer.toString(id)));
-```
-
-Ошибки имеют поля `timestamp`, `status`, `code`, `message`, `path` и, при
-необходимости, `details` или `violations`. Человекочитаемые сообщения и нарушения
-ограничений всегда на русском независимо от локали JVM; машинные коды, имена
-полей и исходные значения не переводятся. Ответы содержат `Content-Language: ru`.
-Некорректный JSON получает `400 / MALFORMED_JSON`, остальные общие ошибки запроса —
-`400 / BAD_REQUEST`, нарушения модели — `422 / VALIDATION_FAILED`.
-Неожиданные исключения дают `500 / INTERNAL_SERVER_ERROR`, подробности записываются
-только в журнал. Служебные заголовки HTTP-ошибок, например `Allow`, сохраняются.
-
-Автономный Java-прокси использует тот же формат обязательных полей, оставаясь
-без внешних зависимостей при запуске. Браузерный клиент показывает русские
-названия полей и понятные сообщения о сетевых сбоях и ошибках прокси.
-
-## Тесты
+При установленном **JDK 11** и Maven 3.9:
 
 ```bash
-mvn clean test package
+mvn clean verify
 node --test web-client/test/errors.test.cjs
 ```
 
-Модульные тесты проверяют CRUD, составные фильтры/сортировку/пагинацию, специальные
-операции, делегирование второго сервиса, единый формат ошибок и русские сообщения
-при английской локали валидатора. Общие обработчики дополнительно проверяются
-в JAX-RS-контейнере Jersey в памяти, прокси — через локальный HTTP-сервер,
-клиент — средствами Node.js без внешних пакетов. `smoke-test.sh` проверяет
-оба развёрнутых application server, TLS-вызов между ними, клиент и Swagger UI.
+Тесты покрывают сортировку/фильтрацию, бизнес-операции, Spring MVC, JSON,
+русские ошибки, CORS, Location за HTTPS-прокси, хранение через два экземпляра
+репозитория и HTTP-клиент ISU. Для тестов БД используется H2;
+интеграционная проверка стенда использует настоящую PostgreSQL.
+
+Старые WAR-дескрипторы, сборка Payara/WildFly и переносимый Java-прокси заменены
+новым способом запуска. Вариант lab-2 и его инструкция Helios остаются в ветке
+`feature/payara-wildfly`; старые скрипты не подходят к JAR-приложениям lab-3.

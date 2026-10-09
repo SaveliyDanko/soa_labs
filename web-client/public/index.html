@@ -7,7 +7,7 @@
     <meta name="description" content="Панель управления учебными группами и операциями ИСУ">
     <title>Study Groups — панель управления</title>
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
-    <link rel="stylesheet" href="styles.css?v=4">
+    <link rel="stylesheet" href="styles.css?v=5">
 </head>
 <body>
 <header class="app-bar">
@@ -15,12 +15,12 @@
         <span class="brand-mark" aria-hidden="true">
             <svg viewBox="0 0 24 24" role="img"><path d="M4 7.5 12 3l8 4.5-8 4.5-8-4.5Zm3 2.2V15c0 1.5 2.2 3 5 3s5-1.5 5-3V9.7l-5 2.8-5-2.8Zm12 .9v5"/></svg>
         </span>
-        <span class="brand-copy"><small>SOA LAB</small><strong>Study Groups</strong></span>
+        <span class="brand-copy"><small>SOA LAB 3</small><strong>Study Groups</strong></span>
     </a>
     <div class="app-bar-actions">
         <div class="service-labels" aria-label="Сервисы приложения">
-            <span><i class="service-dot payara"></i>Payara</span>
-            <span><i class="service-dot wildfly"></i>WildFly</span>
+            <span><i class="service-dot groups"></i>Spring Cloud</span>
+            <span><i class="service-dot isu"></i>Spring Boot</span>
         </div>
         <a class="docs-link" href="/swagger-ui.html" target="_blank" rel="noreferrer">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 5h5v5M19 5l-8 8M19 13v5a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"/></svg>
@@ -34,7 +34,7 @@
 
     <section class="workspace-heading" aria-labelledby="page-title">
         <div>
-            <p class="eyebrow">Первый сервис · Payara</p>
+            <p class="eyebrow">Первый сервис · Spring Cloud</p>
             <h1 id="page-title">Учебные группы</h1>
             <p class="page-description">Управляйте коллекцией, находите нужные записи и выполняйте операции ИСУ.</p>
         </div>
@@ -114,8 +114,8 @@
         <div class="operations-grid">
             <article class="panel operation-panel">
                 <div class="operation-heading">
-                    <span class="operation-mark payara-mark">P</span>
-                    <div><p class="eyebrow">Payara</p><h3>Операции коллекции</h3></div>
+                    <span class="operation-mark groups-mark">Г</span>
+                    <div><p class="eyebrow">Spring Cloud</p><h3>Операции коллекции</h3></div>
                 </div>
                 <div class="stack">
                     <form id="get-by-id-form" class="inline-form">
@@ -138,10 +138,10 @@
                 <div id="special-result" class="result-box muted" aria-live="polite">Результат появится здесь.</div>
             </article>
 
-            <article class="panel operation-panel wildfly-panel">
+            <article class="panel operation-panel isu-panel">
                 <div class="operation-heading">
-                    <span class="operation-mark wildfly-mark">W</span>
-                    <div><p class="eyebrow">WildFly</p><h3>Операции ИСУ</h3></div>
+                    <span class="operation-mark isu-mark">И</span>
+                    <div><p class="eyebrow">Spring Boot</p><h3>Операции ИСУ</h3></div>
                 </div>
                 <form id="isu-form" class="stack">
                     <label>ID группы<input id="isu-group-id" type="number" min="1" required placeholder="Например, 42"></label>

@@ -1,7 +1,7 @@
 package ru.itmo.soa.error;
 
-import jakarta.validation.ConstraintViolation;
-import jakarta.validation.Validator;
+import javax.validation.ConstraintViolation;
+import javax.validation.Validator;
 
 import java.util.Comparator;
 import java.util.LinkedHashMap;
