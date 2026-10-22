@@ -1,19 +1,21 @@
 package ru.itmo.soa.isu;
 
+import java.util.Map;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import ru.itmo.soa.error.ApiException;
 import ru.itmo.soa.error.ErrorCode;
 import ru.itmo.soa.error.RequestValidation;
 import ru.itmo.soa.model.ApiModels.*;
-import java.util.Map;
 
 @RestController
 @RequestMapping(value = "/isu", produces = MediaType.APPLICATION_JSON_VALUE)
 public class IsuResource {
     private final IsuService service;
 
-    public IsuResource(IsuService service) { this.service = service; }
+    public IsuResource(IsuService service) {
+        this.service = service;
+    }
 
     @PostMapping("/group/{groupId}/expel-all")
     public ActionResult expelAll(@PathVariable String groupId) {

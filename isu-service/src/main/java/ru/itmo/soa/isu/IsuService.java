@@ -10,7 +10,9 @@ import ru.itmo.soa.model.ApiModels.StudyGroupRequest;
 public class IsuService {
     private final StudyGroupsClient client;
 
-    public IsuService(StudyGroupsClient client) { this.client = client; }
+    public IsuService(StudyGroupsClient client) {
+        this.client = client;
+    }
 
     public ActionResult expelAll(int groupId) {
         client.delete(groupId);

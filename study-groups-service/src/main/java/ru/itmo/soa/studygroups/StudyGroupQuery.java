@@ -1,17 +1,5 @@
 package ru.itmo.soa.studygroups;
 
-import org.springframework.stereotype.Component;
-import java.util.stream.Collectors;
-import ru.itmo.soa.error.ApiException;
-import ru.itmo.soa.error.ErrorCode;
-import ru.itmo.soa.model.ApiModels.Color;
-import ru.itmo.soa.model.ApiModels.Country;
-import ru.itmo.soa.model.ApiModels.FormOfEducation;
-import ru.itmo.soa.model.ApiModels.Location;
-import ru.itmo.soa.model.ApiModels.Person;
-import ru.itmo.soa.model.ApiModels.Semester;
-import ru.itmo.soa.model.ApiModels.StudyGroup;
-
 import java.time.Instant;
 import java.time.ZonedDateTime;
 import java.util.Comparator;
@@ -21,6 +9,17 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import org.springframework.stereotype.Component;
+import ru.itmo.soa.error.ApiException;
+import ru.itmo.soa.error.ErrorCode;
+import ru.itmo.soa.model.ApiModels.Color;
+import ru.itmo.soa.model.ApiModels.Country;
+import ru.itmo.soa.model.ApiModels.FormOfEducation;
+import ru.itmo.soa.model.ApiModels.Location;
+import ru.itmo.soa.model.ApiModels.Person;
+import ru.itmo.soa.model.ApiModels.Semester;
+import ru.itmo.soa.model.ApiModels.StudyGroup;
 
 @Component
 public class StudyGroupQuery {
@@ -75,14 +74,16 @@ public class StudyGroupQuery {
     private static final Comparator<StudyGroup> BY_ID = Comparator.comparingInt(StudyGroup::getId);
 
     public List<StudyGroup> apply(List<StudyGroup> source, List<String> filters, List<String> sorts) {
-        Predicate<StudyGroup> predicate = filters.stream()
-                .map(this::parseFilter)
-                .reduce(group -> true, Predicate::and);
-        Comparator<StudyGroup> comparator = sorts.stream()
-                .map(this::parseSort)
-                .reduce(Comparator::thenComparing)
-                .orElse(BY_ID)
-                .thenComparing(BY_ID);
+        Predicate<StudyGroup> predicate = group -> true;
+        for (String filter : filters) {
+            predicate = predicate.and(parseFilter(filter));
+        }
+
+        Comparator<StudyGroup> comparator = sorts.isEmpty() ? BY_ID : parseSort(sorts.get(0));
+        for (int i = 1; i < sorts.size(); i++) {
+            comparator = comparator.thenComparing(parseSort(sorts.get(i)));
+        }
+        comparator = comparator.thenComparing(BY_ID);
         return source.stream().filter(predicate).sorted(comparator).collect(Collectors.toList());
     }
 

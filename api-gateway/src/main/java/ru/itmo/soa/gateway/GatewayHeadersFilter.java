@@ -8,11 +8,22 @@ import org.springframework.stereotype.Component;
 public class GatewayHeadersFilter extends ZuulFilter {
     private final GatewayErrorResponse errors;
 
-    public GatewayHeadersFilter(GatewayErrorResponse errors) { this.errors = errors; }
+    public GatewayHeadersFilter(GatewayErrorResponse errors) {
+        this.errors = errors;
+    }
 
-    @Override public String filterType() { return "post"; }
-    @Override public int filterOrder() { return 900; }
-    @Override public boolean shouldFilter() { return true; }
+    @Override
+    public String filterType() {
+        return "post";
+    }
+    @Override
+    public int filterOrder() {
+        return 900;
+    }
+    @Override
+    public boolean shouldFilter() {
+        return true;
+    }
 
     @Override
     public Object run() {

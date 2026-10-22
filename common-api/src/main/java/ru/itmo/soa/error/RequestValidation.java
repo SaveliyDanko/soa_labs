@@ -1,7 +1,6 @@
 package ru.itmo.soa.error;
 
 import javax.validation.ConstraintViolation;
-import javax.validation.Validator;
 
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -43,14 +42,6 @@ public final class RequestValidation {
             throw new ApiException(ErrorCode.INVALID_PARAMETER_VALUE, Map.of("parameter", name, "value", value));
         }
         return value;
-    }
-
-    public static <T> void validate(T request, Validator validator) {
-        if (request == null) {
-            throw ApiException.validation(Map.of("request", ValidationMessages.REQUIRED));
-        }
-        Map<String, String> violations = violations(validator.validate(request));
-        if (!violations.isEmpty()) throw ApiException.validation(violations);
     }
 
     public static Map<String, String> violations(Set<? extends ConstraintViolation<?>> violations) {

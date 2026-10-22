@@ -2,8 +2,14 @@ package ru.itmo.soa.studygroups;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Timestamp;
+import java.time.Instant;
+import java.util.List;
+import java.util.Map;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
@@ -11,12 +17,6 @@ import ru.itmo.soa.error.ApiException;
 import ru.itmo.soa.error.ErrorCode;
 import ru.itmo.soa.model.ApiModels.StudyGroup;
 import ru.itmo.soa.model.ApiModels.StudyGroupRequest;
-
-import java.sql.PreparedStatement;
-import java.sql.Timestamp;
-import java.time.Instant;
-import java.util.List;
-import java.util.Map;
 
 @Repository
 public class StudyGroupStore {
@@ -43,7 +43,7 @@ public class StudyGroupStore {
     }
 
     public StudyGroup find(int id) {
-        List<StudyGroup> groups = jdbc.query("SELECT id, creation_date, payload FROM study_groups WHERE id = ?", mapper(), id);
+        List<StudyGroup> groups = jdbc.query("SELECT id, creation_date, payload FROM study_groups WHERE id = ?", this::mapGroup, id);
         if (groups.isEmpty()) throw notFound(id);
         return groups.get(0);
     }
@@ -59,18 +59,16 @@ public class StudyGroupStore {
     }
 
     public List<StudyGroup> snapshot() {
-        return jdbc.query("SELECT id, creation_date, payload FROM study_groups ORDER BY id", mapper());
+        return jdbc.query("SELECT id, creation_date, payload FROM study_groups ORDER BY id", this::mapGroup);
     }
 
-    private RowMapper<StudyGroup> mapper() {
-        return (row, index) -> {
-            try {
-                return new StudyGroup(row.getInt("id"), row.getTimestamp("creation_date").toInstant(),
-                        json.readValue(row.getString("payload"), StudyGroupRequest.class));
-            } catch (JsonProcessingException exception) {
-                throw new IllegalStateException("Не удалось прочитать учебную группу из хранилища", exception);
-            }
-        };
+    private StudyGroup mapGroup(ResultSet row, int rowNumber) throws SQLException {
+        try {
+            StudyGroupRequest request = json.readValue(row.getString("payload"), StudyGroupRequest.class);
+            return new StudyGroup(row.getInt("id"), row.getTimestamp("creation_date").toInstant(), request);
+        } catch (JsonProcessingException exception) {
+            throw new IllegalStateException("Не удалось прочитать учебную группу из хранилища", exception);
+        }
     }
 
     private String encode(StudyGroupRequest request) {

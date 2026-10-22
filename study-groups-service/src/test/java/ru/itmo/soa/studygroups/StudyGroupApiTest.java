@@ -2,6 +2,7 @@ package ru.itmo.soa.studygroups;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -10,6 +11,9 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
+import ru.itmo.soa.error.ValidationMessages;
+import java.util.List;
+
 import static org.hamcrest.Matchers.*;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -85,6 +89,24 @@ class StudyGroupApiTest {
                 .andExpect(status().isUnsupportedMediaType()).andExpect(jsonPath("$.code").value("UNSUPPORTED_MEDIA_TYPE"));
         mvc.perform(patch("/api/study-groups")).andExpect(status().isMethodNotAllowed())
                 .andExpect(header().exists("Allow"));
+    }
+
+    @Test
+    void validatesNestedFieldsOnCreateAndUpdate() throws Exception {
+        var created = mvc.perform(post("/api/study-groups").contentType(MediaType.APPLICATION_JSON).content(BODY))
+                .andExpect(status().isCreated()).andReturn().getResponse();
+        int id = json.readTree(created.getContentAsString()).get("id").asInt();
+        var invalid = json.readTree(BODY);
+        ((ObjectNode) invalid.get("groupAdmin")).put("name", " ");
+
+        for (var request : List.of(post("/api/study-groups"), put("/api/study-groups/" + id))) {
+            mvc.perform(request.contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(invalid)))
+                    .andExpect(status().isUnprocessableEntity())
+                    .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                    .andExpect(jsonPath("$.violations['groupAdmin.name']").value(ValidationMessages.NOT_BLANK));
+        }
+        mvc.perform(get("/api/study-groups/" + id))
+                .andExpect(jsonPath("$.groupAdmin.name").value("Anna"));
     }
 
     @Test

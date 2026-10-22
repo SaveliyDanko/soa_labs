@@ -20,7 +20,8 @@ class ErrorHandlingTest {
             StudyGroupRequest request = new StudyGroupRequest();
             request.setName(" ");
             request.setStudentsCount(0L);
-            ApiException error = assertThrows(ApiException.class, () -> RequestValidation.validate(request, factory.getValidator()));
+            Map<String, String> violations = RequestValidation.violations(factory.getValidator().validate(request));
+            ApiException error = ApiException.validation(violations);
             assertEquals(422, error.getStatus());
             assertEquals(ValidationMessages.NOT_BLANK, error.getViolations().get("name"));
             assertEquals(ValidationMessages.POSITIVE, error.getViolations().get("studentsCount"));

@@ -8,5 +8,7 @@ import ru.itmo.soa.web.ApiWebConfiguration;
 @SpringBootApplication
 @Import(ApiWebConfiguration.class)
 public class IsuApplication {
-    public static void main(String[] args) { SpringApplication.run(IsuApplication.class, args); }
+    public static void main(String[] args) {
+        SpringApplication.run(IsuApplication.class, args);
+    }
 }

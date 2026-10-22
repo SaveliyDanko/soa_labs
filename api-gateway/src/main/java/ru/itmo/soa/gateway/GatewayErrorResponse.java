@@ -3,20 +3,21 @@ package ru.itmo.soa.gateway;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.netflix.zuul.context.RequestContext;
-import org.springframework.stereotype.Component;
-import ru.itmo.soa.error.ErrorCode;
-import ru.itmo.soa.model.ApiModels.ApiErrorResponse;
-
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.Set;
+import org.springframework.stereotype.Component;
+import ru.itmo.soa.error.ErrorCode;
+import ru.itmo.soa.model.ApiModels.ApiErrorResponse;
 
 @Component
 public class GatewayErrorResponse {
     private final ObjectMapper json;
 
-    public GatewayErrorResponse(ObjectMapper json) { this.json = json; }
+    public GatewayErrorResponse(ObjectMapper json) {
+        this.json = json;
+    }
 
     public byte[] body(String path) {
         ErrorCode code = ErrorCode.UPSTREAM_UNAVAILABLE;
