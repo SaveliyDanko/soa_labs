@@ -10,10 +10,10 @@ import ru.itmo.soa.model.ApiModels.*;
 
 @RestController
 @RequestMapping(value = "/isu", produces = MediaType.APPLICATION_JSON_VALUE)
-public class IsuResource {
+public class IsuController {
     private final IsuService service;
 
-    public IsuResource(IsuService service) {
+    public IsuController(IsuService service) {
         this.service = service;
     }
 

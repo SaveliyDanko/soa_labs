@@ -7,9 +7,10 @@ const vm = require('node:vm');
 // Проверяем сетевой слой и уведомления без загрузки таблицы и форм приложения.
 const source = readFileSync(path.join(__dirname, '../public/app.js'), 'utf8').split('\nfunction lines(')[0];
 
-function client(fetch) {
+function client(fetch, config = {}) {
     const elements = new Map();
     const context = vm.createContext({
+        APP_CONFIG: config,
         fetch, Option: function () {}, setTimeout: () => 0, clearTimeout: () => {},
         document: { getElementById(id) {
             if (!elements.has(id)) elements.set(id, {
@@ -68,4 +69,18 @@ test('технические имена параметров и типов им�
         body: { details: { parameter: 'groupId', expectedType: 'int' } } });
     assert.equal(app.elements.get('notice').textContent,
         'Параметр имеет неверный тип — Параметр: Идентификатор группы; Ожидаемый тип: целое число');
+});
+
+
+test('Config Server не принимается за успешный ответ API', async () => {
+    const app = client(async () => Response.json({ name: 'api', profiles: ['study-groups'], propertySources: [] }));
+    await assert.rejects(app.api('/api/study-groups'), /Config Server вместо API групп/);
+});
+
+test('статический клиент обращается к API через настроенный PHP-прокси', async () => {
+    const requests = [];
+    const app = client(async url => { requests.push(url); return Response.json({ id: 1 }); }, { apiBase: 'proxy.php/' });
+    await app.api('/api/study-groups/1');
+    await app.api('/isu/group/1/expel-all', { method: 'POST' });
+    assert.deepEqual(requests, ['proxy.php/api/study-groups/1', 'proxy.php/isu/group/1/expel-all']);
 });

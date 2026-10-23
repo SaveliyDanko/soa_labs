@@ -12,7 +12,7 @@ import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@WebMvcTest(value = IsuResource.class, properties = "spring.cloud.config.enabled=false")
+@WebMvcTest(value = IsuController.class, properties = "spring.cloud.config.enabled=false")
 @Import(ApiWebConfiguration.class)
 class IsuApiTest {
     @Autowired MockMvc mvc;

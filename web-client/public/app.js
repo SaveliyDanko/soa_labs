@@ -1,3 +1,6 @@
+const API_BASE = (globalThis.APP_CONFIG?.apiBase || '').replace(/\/$/, '');
+const apiUrl = path => API_BASE + path;
+
 const FORMS = ['DISTANCE_EDUCATION', 'FULL_TIME_EDUCATION', 'EVENING_CLASSES'];
 const SEMESTERS = ['SECOND', 'THIRD', 'SEVENTH', 'EIGHTH'];
 const COLORS = ['GREEN', 'YELLOW', 'ORANGE'];
@@ -61,7 +64,7 @@ async function api(url, options = {}) {
     let response;
     let text;
     try {
-        response = await fetch(url, {
+        response = await fetch(apiUrl(url), {
             ...options,
             headers: {
                 Accept: 'application/json',
@@ -87,6 +90,9 @@ async function api(url, options = {}) {
         error.status = response.status;
         error.body = body;
         throw error;
+    }
+    if (Array.isArray(body?.propertySources) && Array.isArray(body?.profiles)) {
+        throw new Error('Запрос попал в Config Server вместо API групп. Проверьте адрес приложения и проброс портов.');
     }
     if (response.status !== 204 && (!body || typeof body !== 'object')) {
         throw new Error('Сервер вернул некорректный ответ. Повторите попытку позже.');
@@ -174,6 +180,9 @@ async function loadGroups() {
     setCollectionLoading(true);
     try {
         const page = await api(`/api/study-groups?${params}`);
+        if (!Array.isArray(page.content) || !Number.isInteger(page.totalPages)) {
+            throw new Error('Сервер вернул неверный формат списка групп. Проверьте адрес API.');
+        }
         state.page = page;
         state.groups = new Map(page.content.map(group => [group.id, group]));
         renderGroups(page);
@@ -558,4 +567,5 @@ byId('expel-all').onclick = async () => {
     } catch (error) { showError(error); }
 };
 
+document.querySelector('.docs-link').href = apiUrl('/swagger-ui.html');
 loadGroups();

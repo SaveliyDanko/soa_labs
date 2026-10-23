@@ -15,7 +15,6 @@ import static ru.itmo.soa.error.ValidationMessages.NOT_BLANK;
 import static ru.itmo.soa.error.ValidationMessages.POSITIVE;
 import static ru.itmo.soa.error.ValidationMessages.REQUIRED;
 
-/** Общий JSON-контракт обеих лабораторных служб. */
 public final class ApiModels {
     private ApiModels() {}
 
