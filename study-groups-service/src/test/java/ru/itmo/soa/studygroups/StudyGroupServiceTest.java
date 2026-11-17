@@ -19,61 +19,73 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class StudyGroupServiceTest {
     private StudyGroupService service;
-    private org.springframework.jdbc.datasource.embedded.EmbeddedDatabase database;
-
     @BeforeEach
     void setUp() {
-        database = new org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder()
-                .generateUniqueName(true).setType(org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType.H2)
-                .addScript("schema.sql").build();
-        StudyGroupStore store = new StudyGroupStore(new org.springframework.jdbc.core.JdbcTemplate(database),
+        var connection = io.r2dbc.spi.ConnectionFactories.get("r2dbc:h2:mem:///service-" + java.util.UUID.randomUUID()
+                + "?options=DB_CLOSE_DELAY=-1");
+        var initializer = new org.springframework.r2dbc.connection.init.ConnectionFactoryInitializer();
+        initializer.setConnectionFactory(connection);
+        initializer.setDatabasePopulator(new org.springframework.r2dbc.connection.init.ResourceDatabasePopulator(
+                new org.springframework.core.io.ClassPathResource("schema.sql")));
+        initializer.afterPropertiesSet();
+        StudyGroupStore store = new StudyGroupStore(org.springframework.r2dbc.core.DatabaseClient.create(connection),
                 new com.fasterxml.jackson.databind.ObjectMapper().registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule()));
         service = new StudyGroupService(store, new StudyGroupQuery());
     }
 
-    @org.junit.jupiter.api.AfterEach
-    void close() { database.shutdown(); }
-
     @Test
     void supportsCrudAndKeepsGeneratedFields() {
-        StudyGroup created = service.create(group("P3110", 25, "Anna"));
+        StudyGroup created = service.create(group("P3110", 25, "Anna")).block();
         assertEquals(1, created.getId());
         assertNotNull(created.getCreationDate());
 
-        StudyGroup updated = service.update(created.getId(), group("P3110 updated", 30, "Anna"));
+        StudyGroup updated = service.update(created.getId(), group("P3110 updated", 30, "Anna")).block();
         assertEquals(created.getCreationDate(), updated.getCreationDate());
         assertEquals(30, updated.getStudentsCount());
 
-        service.delete(created.getId());
-        ApiException error = assertThrows(ApiException.class, () -> service.get(created.getId()));
+        service.delete(created.getId()).block();
+        ApiException error = assertThrows(ApiException.class, () -> service.get(created.getId()).block());
         assertEquals(404, error.getStatus());
         assertEquals("STUDY_GROUP_NOT_FOUND", error.getCode());
     }
 
     @Test
     void combinesFilteringSortingPagingAndSpecialOperations() {
-        service.create(group("Math A", 10, "Anna"));
-        service.create(group("Math B", 30, "Zoe"));
-        service.create(group("Physics", 20, "Mike"));
+        service.create(group("Math A", 10, "Anna")).block();
+        service.create(group("Math B", 30, "Zoe")).block();
+        service.create(group("Physics", 20, "Mike")).block();
 
         StudyGroupPage page = service.list(0, 1, List.of("studentsCount,desc"),
-                List.of("name:contains:math", "studentsCount:ge:10"));
+                List.of("name:contains:math", "studentsCount:ge:10")).block();
         assertEquals(2, page.getTotalElements());
         assertEquals("Math B", page.getContent().get(0).getName());
-        assertEquals("Zoe", service.maxAdmin().getGroupAdmin().getName());
-        assertEquals(1, service.countAdminGreaterThan("Mike").getCount());
-        assertEquals(2, service.nameContains("MATH").size());
+        assertEquals("Zoe", service.maxAdmin().block().getGroupAdmin().getName());
+        assertEquals(1, service.countAdminGreaterThan("Mike").block().getCount());
+        assertEquals(2, service.nameContains("MATH").collectList().block().size());
     }
 
     @Test
     void rejectsUnknownQueryFieldsAndBadValues() {
         ApiException unknown = assertThrows(ApiException.class,
-                () -> service.list(0, 20, List.of(), List.of("unknown:eq:x")));
+                () -> service.list(0, 20, List.of(), List.of("unknown:eq:x")).block());
         assertEquals("INVALID_FILTER_FIELD", unknown.getCode());
 
         ApiException badSort = assertThrows(ApiException.class,
-                () -> service.list(0, 20, List.of("name,sideways"), List.of()));
+                () -> service.list(0, 20, List.of("name,sideways"), List.of()).block());
         assertEquals("INVALID_SORT_FORMAT", badSort.getCode());
+    }
+
+    @Test
+    void defersWritesUntilSubscriptionAndPropagatesMissingGroups() {
+        var pending = service.create(group("Lazy", 10, "Anna"));
+        reactor.test.StepVerifier.create(service.nameContains("Lazy")).verifyComplete();
+        reactor.test.StepVerifier.create(pending).assertNext(group -> assertEquals("Lazy", group.getName())).verifyComplete();
+        reactor.test.StepVerifier.create(service.update(9999, group("Missing", 10, "Anna")))
+                .expectErrorMatches(error -> error instanceof ApiException && ((ApiException) error).getStatus() == 404)
+                .verify();
+        reactor.test.StepVerifier.create(service.delete(9999))
+                .expectErrorMatches(error -> error instanceof ApiException && ((ApiException) error).getStatus() == 404)
+                .verify();
     }
 
     private StudyGroupRequest group(String name, long count, String admin) {

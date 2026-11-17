@@ -1,5 +1,5 @@
 server:
   port: 8281
 study-groups:
-  # Даже внутренний вызов ISU проходит через Zuul, Eureka и Ribbon.
+  # Даже внутренний вызов ISU проходит через Spring Cloud Gateway, Eureka и Spring Cloud LoadBalancer.
   gateway-url: ${GATEWAY_URL:http://localhost:8080}

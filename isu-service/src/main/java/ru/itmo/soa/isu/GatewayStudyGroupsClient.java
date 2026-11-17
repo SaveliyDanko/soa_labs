@@ -1,20 +1,19 @@
 package ru.itmo.soa.isu;
 
+import io.netty.channel.ChannelOption;
+import io.netty.handler.timeout.ReadTimeoutException;
 import java.time.Duration;
-import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeoutException;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.web.client.RestTemplateBuilder;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.stereotype.Component;
-import org.springframework.web.client.ResourceAccessException;
-import org.springframework.web.client.RestClientException;
-import org.springframework.web.client.RestClientResponseException;
-import org.springframework.web.client.RestTemplate;
+import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientRequestException;
+import reactor.core.publisher.Mono;
+import reactor.netty.http.client.HttpClient;
 import ru.itmo.soa.error.ApiException;
 import ru.itmo.soa.error.ErrorCode;
 import ru.itmo.soa.model.ApiModels.StudyGroup;
@@ -22,63 +21,64 @@ import ru.itmo.soa.model.ApiModels.StudyGroupRequest;
 
 @Component
 public class GatewayStudyGroupsClient implements StudyGroupsClient {
-    private final RestTemplate client;
-    private final String baseUrl;
+    private final WebClient client;
 
-    public GatewayStudyGroupsClient(RestTemplateBuilder builder,
+    public GatewayStudyGroupsClient(WebClient.Builder builder,
                                     @Value("${study-groups.gateway-url}") String baseUrl) {
-        this.client = builder
-                .setConnectTimeout(Duration.ofSeconds(4))
-                .setReadTimeout(Duration.ofSeconds(12))
-                .build();
-        this.baseUrl = baseUrl.replaceAll("/+$", "") + "/api/study-groups/";
+        HttpClient http = HttpClient.create().disableRetry(true).option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 4000)
+                .responseTimeout(Duration.ofSeconds(12));
+        this.client = builder.clientConnector(new ReactorClientHttpConnector(http))
+                .baseUrl(baseUrl.replaceAll("/+$", "") + "/api/study-groups")
+                .defaultHeader("Accept", MediaType.APPLICATION_JSON_VALUE).build();
     }
 
     @Override
-    public StudyGroup get(int id) {
-        return execute(id, HttpMethod.GET, null, StudyGroup.class);
-    }
+    public Mono<StudyGroup> get(int id) { return execute(id, HttpMethod.GET, null, StudyGroup.class); }
 
     @Override
-    public StudyGroup update(int id, StudyGroupRequest request) {
+    public Mono<StudyGroup> update(int id, StudyGroupRequest request) {
         return execute(id, HttpMethod.PUT, request, StudyGroup.class);
     }
 
     @Override
-    public void delete(int id) {
-        execute(id, HttpMethod.DELETE, null, Void.class);
+    public Mono<Void> delete(int id) { return execute(id, HttpMethod.DELETE, null, Void.class); }
+
+    private <T> Mono<T> execute(int id, HttpMethod method, Object body, Class<T> responseType) {
+        return Mono.defer(() -> {
+            WebClient.RequestBodySpec request = client.method(method).uri("/{id}", id);
+            WebClient.RequestHeadersSpec<?> headers = body == null ? request
+                    : request.contentType(MediaType.APPLICATION_JSON).bodyValue(body);
+            return headers.exchangeToMono(response -> {
+                int status = response.rawStatusCode();
+                int expected = method == HttpMethod.DELETE ? 204 : 200;
+                if (status != expected) {
+                    return response.releaseBody().then(Mono.error(upstreamError(id, status)));
+                }
+                if (responseType == Void.class) return response.releaseBody().then(Mono.<T>empty());
+                return response.bodyToMono(responseType)
+                        .switchIfEmpty(Mono.error(new ApiException(ErrorCode.UPSTREAM_BAD_RESPONSE)));
+            });
+        }).timeout(Duration.ofSeconds(15))
+                .onErrorMap(WebClientRequestException.class, failure ->
+                        new ApiException(ErrorCode.STUDY_GROUPS_SERVICE_UNAVAILABLE, Map.of(), failure))
+                .onErrorMap(this::isTimeout, failure ->
+                        new ApiException(ErrorCode.STUDY_GROUPS_SERVICE_UNAVAILABLE, Map.of(), failure))
+                .onErrorMap(failure -> !(failure instanceof ApiException), failure ->
+                        new ApiException(ErrorCode.UPSTREAM_BAD_RESPONSE, Map.of(), failure));
     }
 
-    private <T> T execute(int id, HttpMethod method, Object body, Class<T> responseType) {
-        HttpHeaders headers = new HttpHeaders();
-        headers.setAccept(List.of(MediaType.APPLICATION_JSON));
-        if (body != null) headers.setContentType(MediaType.APPLICATION_JSON);
-        try {
-            ResponseEntity<T> response = client.exchange(baseUrl + id, method, new HttpEntity<>(body, headers), responseType);
-            int expectedStatus = method == HttpMethod.DELETE ? 204 : 200;
-            boolean missingBody = responseType != Void.class && response.getBody() == null;
-            if (response.getStatusCodeValue() != expectedStatus || missingBody) {
-                throw new ApiException(ErrorCode.UPSTREAM_BAD_RESPONSE, Map.of("upstreamStatus", Integer.toString(response.getStatusCodeValue())));
-            }
-            return response.getBody();
-        } catch (RestClientResponseException exception) {
-            throw upstreamError(id, exception);
-        } catch (ResourceAccessException exception) {
-            throw new ApiException(ErrorCode.STUDY_GROUPS_SERVICE_UNAVAILABLE, Map.of(), exception);
-        } catch (RestClientException exception) {
-            throw new ApiException(ErrorCode.UPSTREAM_BAD_RESPONSE, Map.of(), exception);
+    private boolean isTimeout(Throwable failure) {
+        if (failure instanceof ApiException) return false;
+        for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
+            if (cause instanceof TimeoutException || cause instanceof ReadTimeoutException) return true;
         }
+        return false;
     }
 
-    private ApiException upstreamError(int id, RestClientResponseException exception) {
-        int status = exception.getRawStatusCode();
-        if (status == 404) {
-            return new ApiException(ErrorCode.STUDY_GROUP_NOT_FOUND, Map.of("id", Integer.toString(id)));
-        }
+    private ApiException upstreamError(int id, int status) {
+        if (status == 404) return new ApiException(ErrorCode.STUDY_GROUP_NOT_FOUND, Map.of("id", Integer.toString(id)));
         ErrorCode code = status == 503 || status == 504
-                ? ErrorCode.STUDY_GROUPS_SERVICE_UNAVAILABLE
-                : ErrorCode.UPSTREAM_BAD_RESPONSE;
-        return new ApiException(code, Map.of("upstreamStatus", Integer.toString(status)), exception);
+                ? ErrorCode.STUDY_GROUPS_SERVICE_UNAVAILABLE : ErrorCode.UPSTREAM_BAD_RESPONSE;
+        return new ApiException(code, Map.of("upstreamStatus", Integer.toString(status)));
     }
-
 }

@@ -1,13 +1,17 @@
 server:
   port: 8181
 spring:
-  datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/study_groups}
+  r2dbc:
+    url: ${R2DBC_URL:r2dbc:postgresql://localhost:5432/study_groups}
     username: ${DB_USER:soa}
     password: ${DB_PASSWORD:soa-lab}
-    initialization-mode: never
-    hikari:
-      maximum-pool-size: 5
+    pool:
+      initial-size: 1
+      max-size: 5
+  sql:
+    init:
+      mode: always
+
 eureka:
   client:
     service-url:

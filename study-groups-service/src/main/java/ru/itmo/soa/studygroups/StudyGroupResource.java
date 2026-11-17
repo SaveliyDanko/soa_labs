@@ -7,7 +7,10 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
+import org.springframework.web.util.UriComponentsBuilder;
+import org.springframework.http.server.reactive.ServerHttpRequest;
+import reactor.core.publisher.Mono;
+import reactor.core.publisher.Flux;
 import ru.itmo.soa.error.RequestValidation;
 import ru.itmo.soa.model.ApiModels.*;
 
@@ -20,15 +23,17 @@ public class StudyGroupResource {
     }
 
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<StudyGroup> create(@Valid @RequestBody StudyGroupRequest request) {
-        StudyGroup created = service.create(request);
-        URI location = ServletUriComponentsBuilder.fromCurrentRequestUri().path("/{id}")
-                .buildAndExpand(created.getId()).toUri();
-        return ResponseEntity.created(location).body(created);
+    public Mono<ResponseEntity<StudyGroup>> create(@Valid @RequestBody StudyGroupRequest request,
+                                                   ServerHttpRequest httpRequest) {
+        return service.create(request).map(created -> {
+            URI location = UriComponentsBuilder.fromUri(httpRequest.getURI()).path("/{id}")
+                    .buildAndExpand(created.getId()).toUri();
+            return ResponseEntity.created(location).body(created);
+        });
     }
 
     @GetMapping
-    public StudyGroupPage list(@RequestParam MultiValueMap<String, String> parameters) {
+    public Mono<StudyGroupPage> list(@RequestParam MultiValueMap<String, String> parameters) {
         String pageValue = parameters.getFirst("page");
         String sizeValue = parameters.getFirst("size");
         List<String> sorts = parameters.getOrDefault("sort", List.of());
@@ -39,33 +44,32 @@ public class StudyGroupResource {
     }
 
     @GetMapping("/{id}")
-    public StudyGroup get(@PathVariable String id) {
+    public Mono<StudyGroup> get(@PathVariable String id) {
         return service.get(id(id));
     }
 
     @PutMapping(value = "/{id}", consumes = MediaType.APPLICATION_JSON_VALUE)
-    public StudyGroup update(@PathVariable String id, @Valid @RequestBody StudyGroupRequest request) {
+    public Mono<StudyGroup> update(@PathVariable String id, @Valid @RequestBody StudyGroupRequest request) {
         return service.update(id(id), request);
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable String id) {
-        service.delete(id(id));
-        return ResponseEntity.noContent().build();
+    public Mono<ResponseEntity<Void>> delete(@PathVariable String id) {
+        return service.delete(id(id)).thenReturn(ResponseEntity.noContent().build());
     }
 
     @GetMapping("/group-admin/max")
-    public StudyGroup maxAdmin() {
+    public Mono<StudyGroup> maxAdmin() {
         return service.maxAdmin();
     }
 
     @GetMapping("/group-admin/count-greater")
-    public CountResult countGreater(@RequestParam(required = false) String adminName) {
+    public Mono<CountResult> countGreater(@RequestParam(required = false) String adminName) {
         return service.countAdminGreaterThan(RequestValidation.requiredText(adminName, "adminName"));
     }
 
     @GetMapping("/name/contains")
-    public List<StudyGroup> contains(@RequestParam(required = false) String substring) {
+    public Flux<StudyGroup> contains(@RequestParam(required = false) String substring) {
         return service.nameContains(RequestValidation.requiredText(substring, "substring"));
     }
 

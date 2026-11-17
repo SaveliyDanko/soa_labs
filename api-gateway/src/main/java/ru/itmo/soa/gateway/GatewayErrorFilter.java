@@ -1,36 +1,25 @@
 package ru.itmo.soa.gateway;
 
-import com.netflix.zuul.ZuulFilter;
-import com.netflix.zuul.context.RequestContext;
+import java.util.Map;
+import org.springframework.cloud.gateway.filter.GatewayFilterChain;
+import org.springframework.cloud.gateway.filter.GlobalFilter;
+import org.springframework.core.Ordered;
 import org.springframework.stereotype.Component;
+import org.springframework.web.server.ServerWebExchange;
+import org.springframework.web.server.ResponseStatusException;
+import reactor.core.publisher.Mono;
+import ru.itmo.soa.error.ApiException;
+import ru.itmo.soa.error.ErrorCode;
 
 @Component
-public class GatewayErrorFilter extends ZuulFilter {
-    private final GatewayErrorResponse errors;
-
-    public GatewayErrorFilter(GatewayErrorResponse errors) {
-        this.errors = errors;
-    }
+public class GatewayErrorFilter implements GlobalFilter, Ordered {
+    @Override public int getOrder() { return -3; }
 
     @Override
-    public String filterType() {
-        return "error";
-    }
-    @Override
-    public int filterOrder() {
-        return -1;
-    }
-    @Override
-    public boolean shouldFilter() {
-        return RequestContext.getCurrentContext().getThrowable() != null;
-    }
-
-    @Override
-    public Object run() {
-        RequestContext context = RequestContext.getCurrentContext();
-        errors.apply(context);
-        context.remove("throwable");
-        context.setSendZuulResponse(false);
-        return null;
+    public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
+        return chain.filter(exchange).onErrorMap(failure -> !(failure instanceof ApiException)
+                        && (!(failure instanceof ResponseStatusException)
+                            || ((ResponseStatusException) failure).getRawStatusCode() >= 500),
+                failure -> new ApiException(ErrorCode.UPSTREAM_UNAVAILABLE, Map.of(), failure));
     }
 }

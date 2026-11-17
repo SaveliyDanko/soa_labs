@@ -1,73 +1,81 @@
 package ru.itmo.soa.error;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import java.util.stream.Collectors;
-import javax.servlet.http.HttpServletRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import javax.validation.ConstraintViolationException;
+import org.springframework.boot.web.reactive.error.ErrorWebExceptionHandler;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
-import org.springframework.web.bind.MethodArgumentNotValidException;
-import org.springframework.web.bind.annotation.ExceptionHandler;
-import org.springframework.web.bind.annotation.RestControllerAdvice;
-import org.springframework.web.context.request.ServletWebRequest;
-import org.springframework.web.context.request.WebRequest;
-import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
+import org.springframework.web.bind.support.WebExchangeBindException;
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.server.ServerWebExchange;
+import org.springframework.web.server.ServerWebInputException;
+import reactor.core.publisher.Mono;
 import ru.itmo.soa.model.ApiModels.ApiErrorResponse;
 import ru.itmo.soa.model.ApiModels.ValidationErrorResponse;
 
-@RestControllerAdvice
-public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
-    private static final Logger LOG = Logger.getLogger(ApiExceptionHandler.class.getName());
+/** Runs before Sentry's fallback handler (-2); reports server errors exactly once. */
+@Order(-3)
+public class ApiExceptionHandler implements ErrorWebExceptionHandler {
+    private static final Logger LOG = LoggerFactory.getLogger(ApiExceptionHandler.class);
+    private final ObjectMapper json;
+    private final ApiErrorReporter reporter;
 
-    @ExceptionHandler(ApiException.class)
-    public ResponseEntity<Object> api(ApiException exception, HttpServletRequest request) {
-        return response(exception, request.getRequestURI(), new HttpHeaders());
-    }
-
-    @ExceptionHandler(ConstraintViolationException.class)
-    public ResponseEntity<Object> validation(ConstraintViolationException exception, HttpServletRequest request) {
-        return api(ApiException.validation(RequestValidation.violations(exception.getConstraintViolations())), request);
-    }
-
-    @ExceptionHandler(Exception.class)
-    public ResponseEntity<Object> unexpected(Exception exception, HttpServletRequest request) {
-        LOG.log(Level.SEVERE, "Необработанная ошибка API", exception);
-        return api(new ApiException(ErrorCode.INTERNAL_SERVER_ERROR), request);
+    public ApiExceptionHandler(ObjectMapper json, ApiErrorReporter reporter) {
+        this.json = json;
+        this.reporter = reporter;
     }
 
     @Override
-    protected ResponseEntity<Object> handleMethodArgumentNotValid(MethodArgumentNotValidException exception,
-            HttpHeaders headers, HttpStatus status, WebRequest request) {
-        Map<String, String> violations = new LinkedHashMap<>();
-        exception.getBindingResult().getFieldErrors().stream()
-                .sorted(Comparator.comparing(FieldError::getField).thenComparing(FieldError::getDefaultMessage))
-                .forEach(error -> violations.putIfAbsent(error.getField(), error.getDefaultMessage()));
-        return response(ApiException.validation(violations), path(request), headers);
+    public Mono<Void> handle(ServerWebExchange exchange, Throwable exception) {
+        if (exchange.getResponse().isCommitted()) return Mono.error(exception);
+        return Mono.defer(() -> {
+            ApiException error = classify(exception);
+            if (error.getStatus() >= 500) LOG.error("Ошибка API {}", error.getCode(), exception);
+            reporter.capture(exception, error, exchange);
+            HttpHeaders headers = exception instanceof ResponseStatusException
+                    ? ((ResponseStatusException) exception).getResponseHeaders() : new HttpHeaders();
+            ResponseEntity<Object> response = response(error, exchange.getRequest().getPath().value(), headers);
+            exchange.getResponse().setStatusCode(response.getStatusCode());
+            exchange.getResponse().getHeaders().putAll(response.getHeaders());
+            try {
+                byte[] body = json.writeValueAsBytes(response.getBody());
+                return exchange.getResponse().writeWith(Mono.just(exchange.getResponse().bufferFactory().wrap(body)));
+            } catch (com.fasterxml.jackson.core.JsonProcessingException failure) {
+                return Mono.error(failure);
+            }
+        });
     }
 
-    @Override
-    protected ResponseEntity<Object> handleHttpMessageNotReadable(HttpMessageNotReadableException exception,
-            HttpHeaders headers, HttpStatus status, WebRequest request) {
-        ApiException error = new ApiException(ErrorCode.MALFORMED_JSON, jsonErrorDetails(exception), exception);
-        return response(error, path(request), headers);
-    }
-
-    @Override
-    protected ResponseEntity<Object> handleExceptionInternal(Exception exception, Object body,
-            HttpHeaders headers, HttpStatus status, WebRequest request) {
-        return response(ApiException.http(status.value()), path(request), headers);
-    }
-
-    private static String path(WebRequest request) {
-        return ((ServletWebRequest) request).getRequest().getRequestURI();
+    private ApiException classify(Throwable exception) {
+        if (exception instanceof ApiException) return (ApiException) exception;
+        if (exception instanceof WebExchangeBindException) {
+            Map<String, String> violations = new LinkedHashMap<>();
+            ((WebExchangeBindException) exception).getBindingResult().getFieldErrors().stream()
+                    .sorted(Comparator.comparing(FieldError::getField).thenComparing(FieldError::getDefaultMessage))
+                    .forEach(error -> violations.putIfAbsent(error.getField(), error.getDefaultMessage()));
+            return ApiException.validation(violations);
+        }
+        if (exception instanceof ConstraintViolationException) {
+            return ApiException.validation(RequestValidation.violations(
+                    ((ConstraintViolationException) exception).getConstraintViolations()));
+        }
+        if (exception instanceof ServerWebInputException) {
+            return new ApiException(ErrorCode.MALFORMED_JSON, jsonErrorDetails(exception), exception);
+        }
+        if (exception instanceof ResponseStatusException) {
+            return ApiException.http(((ResponseStatusException) exception).getRawStatusCode());
+        }
+        return new ApiException(ErrorCode.INTERNAL_SERVER_ERROR, Map.of(), exception);
     }
 
     private static Map<String, String> jsonErrorDetails(Throwable exception) {

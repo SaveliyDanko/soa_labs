@@ -6,130 +6,133 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.autoconfigure.web.reactive.AutoConfigureWebTestClient;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.r2dbc.core.DatabaseClient;
+import org.springframework.test.web.reactive.server.WebTestClient;
 import ru.itmo.soa.error.ValidationMessages;
 import java.util.List;
-
-import static org.hamcrest.Matchers.*;
 import static org.junit.jupiter.api.Assertions.*;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@SpringBootTest(properties = {
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
         "spring.cloud.config.enabled=false", "eureka.client.enabled=false",
         "server.forward-headers-strategy=framework",
-        "spring.datasource.url=jdbc:h2:mem:api;DB_CLOSE_DELAY=-1",
-        "spring.datasource.driver-class-name=org.h2.Driver", "spring.datasource.initialization-mode=always"
+        "spring.r2dbc.url=r2dbc:h2:mem:///api;DB_CLOSE_DELAY=-1", "spring.sql.init.mode=always"
 })
-@AutoConfigureMockMvc
+@AutoConfigureWebTestClient
 class StudyGroupApiTest {
-    @Autowired MockMvc mvc;
+    @Autowired WebTestClient client;
+    @org.springframework.boot.test.web.server.LocalServerPort int port;
     @Autowired ObjectMapper json;
-    @Autowired JdbcTemplate jdbc;
+    @Autowired DatabaseClient database;
     private static final String BODY = "{\"name\":\"Math\",\"coordinates\":{\"x\":1.5,\"y\":-2},\"studentsCount\":25,"
             + "\"formOfEducation\":\"FULL_TIME_EDUCATION\",\"semesterEnum\":\"THIRD\","
             + "\"groupAdmin\":{\"name\":\"Anna\",\"nationality\":\"USA\","
             + "\"birthday\":\"1985-06-20T10:15:30+03:00[Europe/Moscow]\"}}";
 
     @BeforeEach
-    void clear() { jdbc.update("DELETE FROM study_groups"); }
+    void clear() {
+        client = WebTestClient.bindToServer().baseUrl("http://127.0.0.1:" + port).build();
+        database.sql("DELETE FROM study_groups").fetch().rowsUpdated().block();
+    }
+
+    private JsonNode create() throws Exception {
+        byte[] body = client.post().uri("/api/study-groups").contentType(MediaType.APPLICATION_JSON).bodyValue(BODY)
+                .exchange().expectStatus().isCreated().expectBody().returnResult().getResponseBody();
+        return json.readTree(body);
+    }
 
     @Test
     void preservesCrudAndLocationBehindTheGateway() throws Exception {
-        var created = mvc.perform(post("/api/study-groups").contentType(MediaType.APPLICATION_JSON).content(BODY)
-                        .header("X-Forwarded-Proto", "https").header("X-Forwarded-Host", "localhost:3000"))
-                .andExpect(status().isCreated()).andExpect(header().string("Location", startsWith("https://localhost:3000/api/study-groups/")))
-                .andReturn().getResponse();
-        JsonNode group = json.readTree(created.getContentAsString());
+        var created = client.post().uri("/api/study-groups").contentType(MediaType.APPLICATION_JSON).bodyValue(BODY)
+                .header("X-Forwarded-Proto", "https").header("X-Forwarded-Host", "localhost:3000")
+                .exchange().expectStatus().isCreated().expectBody().returnResult();
+        JsonNode group = json.readTree(created.getResponseBody());
         int id = group.get("id").asInt();
-        mvc.perform(get("/api/study-groups/" + id)).andExpect(status().isOk())
-                .andExpect(jsonPath("$.name").value("Math")).andExpect(jsonPath("$.creationDate").isString());
-        mvc.perform(put("/api/study-groups/" + id).contentType(MediaType.APPLICATION_JSON).content(BODY.replace("25", "30")))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.studentsCount").value(30))
-                .andExpect(jsonPath("$.creationDate").value(group.get("creationDate").asText()));
-        mvc.perform(delete("/api/study-groups/" + id)).andExpect(status().isNoContent());
-        mvc.perform(get("/api/study-groups/" + id)).andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.code").value("STUDY_GROUP_NOT_FOUND"))
-                .andExpect(jsonPath("$.path").value("/api/study-groups/" + id))
-                .andExpect(header().string("Content-Language", "ru"));
+        assertEquals("https://localhost:3000/api/study-groups/" + id, created.getResponseHeaders().getFirst("Location"));
+        client.get().uri("/api/study-groups/" + id).exchange().expectStatus().isOk()
+                .expectBody().jsonPath("$.name").isEqualTo("Math").jsonPath("$.creationDate").isNotEmpty();
+        client.put().uri("/api/study-groups/" + id).contentType(MediaType.APPLICATION_JSON).bodyValue(BODY.replace("25", "30"))
+                .exchange().expectStatus().isOk().expectBody().jsonPath("$.studentsCount").isEqualTo(30)
+                .jsonPath("$.creationDate").isEqualTo(group.get("creationDate").asText());
+        client.delete().uri("/api/study-groups/" + id).exchange().expectStatus().isNoContent();
+        client.get().uri("/api/study-groups/" + id).exchange().expectStatus().isNotFound()
+                .expectHeader().valueEquals("Content-Language", "ru").expectBody()
+                .jsonPath("$.code").isEqualTo("STUDY_GROUP_NOT_FOUND")
+                .jsonPath("$.path").isEqualTo("/api/study-groups/" + id);
     }
 
     @Test
     void preservesRepeatedSortAndFilterParameters() throws Exception {
-        mvc.perform(post("/api/study-groups").contentType(MediaType.APPLICATION_JSON).content(BODY)).andExpect(status().isCreated());
-        mvc.perform(post("/api/study-groups").contentType(MediaType.APPLICATION_JSON).content(BODY.replace("25", "30"))).andExpect(status().isCreated());
-        mvc.perform(get("/api/study-groups").param("sort", "studentsCount,desc")
-                        .param("filter", "name:contains:math", "studentsCount:ge:26").param("size", "1"))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(1))
-                .andExpect(jsonPath("$.content[0].studentsCount").value(30));
-        mvc.perform(get("/api/study-groups").param("sort", "name,asc", "studentsCount,desc"))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.content[0].studentsCount").value(30));
-        mvc.perform(get("/api/study-groups/group-admin/max")).andExpect(status().isOk());
-        mvc.perform(get("/api/study-groups/group-admin/count-greater").param("adminName", "A"))
-                .andExpect(jsonPath("$.count").value(2));
-        mvc.perform(get("/api/study-groups/name/contains").param("substring", "MATH"))
-                .andExpect(jsonPath("$", hasSize(2)));
+        create();
+        client.post().uri("/api/study-groups").contentType(MediaType.APPLICATION_JSON).bodyValue(BODY.replace("25", "30"))
+                .exchange().expectStatus().isCreated();
+        client.get().uri(uri -> uri.path("/api/study-groups").queryParam("sort", "studentsCount,desc")
+                .queryParam("filter", "name:contains:math", "studentsCount:ge:26").queryParam("size", "1").build())
+                .exchange().expectStatus().isOk().expectBody().jsonPath("$.totalElements").isEqualTo(1)
+                .jsonPath("$.content[0].studentsCount").isEqualTo(30);
+        client.get().uri(uri -> uri.path("/api/study-groups").queryParam("sort", "name,asc", "studentsCount,desc").build())
+                .exchange().expectStatus().isOk().expectBody().jsonPath("$.content[0].studentsCount").isEqualTo(30);
+        client.get().uri("/api/study-groups/group-admin/max").exchange().expectStatus().isOk();
+        client.get().uri("/api/study-groups/group-admin/count-greater?adminName=A").exchange()
+                .expectStatus().isOk().expectBody().jsonPath("$.count").isEqualTo(2);
+        client.get().uri("/api/study-groups/name/contains?substring=MATH").exchange()
+                .expectStatus().isOk().expectBody().jsonPath("$.length()").isEqualTo(2);
     }
 
     @Test
-    void preservesStrictJsonAndRussianValidation() throws Exception {
+    void preservesStrictJsonAndRussianValidation() {
         for (String body : new String[]{"{", BODY.replace("\"THIRD\"", "\"UNKNOWN\""),
-                BODY.replace("\"name\":\"Anna\"", "\"unexpected\":1,\"name\":\"Anna\"")}) {
-            mvc.perform(post("/api/study-groups").contentType(MediaType.APPLICATION_JSON).content(body))
-                    .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("MALFORMED_JSON"));
+                BODY.replace("\"name\":\"Anna\"", "\"unexpected\":1,\"name\":\"Anna\""),
+                BODY.replace("25", "\"25\""), BODY.replace("25", "25.5")}) {
+            client.post().uri("/api/study-groups").contentType(MediaType.APPLICATION_JSON).bodyValue(body)
+                    .exchange().expectStatus().isBadRequest().expectBody().jsonPath("$.code").isEqualTo("MALFORMED_JSON");
         }
-        mvc.perform(post("/api/study-groups").contentType(MediaType.APPLICATION_JSON).content(BODY.replace("25", "0")))
-                .andExpect(status().isUnprocessableEntity()).andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
-                .andExpect(jsonPath("$.violations.studentsCount").value("Значение должно быть больше нуля"));
-        mvc.perform(post("/api/study-groups").contentType(MediaType.TEXT_PLAIN).content(BODY))
-                .andExpect(status().isUnsupportedMediaType()).andExpect(jsonPath("$.code").value("UNSUPPORTED_MEDIA_TYPE"));
-        mvc.perform(patch("/api/study-groups")).andExpect(status().isMethodNotAllowed())
-                .andExpect(header().exists("Allow"));
+        client.post().uri("/api/study-groups").contentType(MediaType.APPLICATION_JSON).bodyValue(BODY.replace("25", "0"))
+                .exchange().expectStatus().isEqualTo(422).expectBody().jsonPath("$.code").isEqualTo("VALIDATION_FAILED")
+                .jsonPath("$.violations.studentsCount").isEqualTo("Значение должно быть больше нуля");
+        client.post().uri("/api/study-groups").contentType(MediaType.TEXT_PLAIN).bodyValue(BODY)
+                .exchange().expectStatus().isEqualTo(415).expectBody().jsonPath("$.code").isEqualTo("UNSUPPORTED_MEDIA_TYPE");
+        client.patch().uri("/api/study-groups").exchange().expectStatus().isEqualTo(405).expectHeader().exists("Allow");
+        client.get().uri("/missing").exchange().expectStatus().isNotFound().expectBody()
+                .jsonPath("$.code").isEqualTo("ENDPOINT_NOT_FOUND");
     }
 
     @Test
     void validatesNestedFieldsOnCreateAndUpdate() throws Exception {
-        var created = mvc.perform(post("/api/study-groups").contentType(MediaType.APPLICATION_JSON).content(BODY))
-                .andExpect(status().isCreated()).andReturn().getResponse();
-        int id = json.readTree(created.getContentAsString()).get("id").asInt();
+        int id = create().get("id").asInt();
         var invalid = json.readTree(BODY);
         ((ObjectNode) invalid.get("groupAdmin")).put("name", " ");
-
-        for (var request : List.of(post("/api/study-groups"), put("/api/study-groups/" + id))) {
-            mvc.perform(request.contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(invalid)))
-                    .andExpect(status().isUnprocessableEntity())
-                    .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
-                    .andExpect(jsonPath("$.violations['groupAdmin.name']").value(ValidationMessages.NOT_BLANK));
+        for (var request : List.of(client.post().uri("/api/study-groups"), client.put().uri("/api/study-groups/" + id))) {
+            request.contentType(MediaType.APPLICATION_JSON).bodyValue(json.writeValueAsString(invalid))
+                    .exchange().expectStatus().isEqualTo(422).expectBody().jsonPath("$.code").isEqualTo("VALIDATION_FAILED")
+                    .jsonPath("$.violations['groupAdmin.name']").isEqualTo(ValidationMessages.NOT_BLANK);
         }
-        mvc.perform(get("/api/study-groups/" + id))
-                .andExpect(jsonPath("$.groupAdmin.name").value("Anna"));
+        client.get().uri("/api/study-groups/" + id).exchange().expectBody().jsonPath("$.groupAdmin.name").isEqualTo("Anna");
     }
 
     @Test
-    void supportsCorsPreflightAndDocumentation() throws Exception {
-        mvc.perform(options("/api/study-groups").header("Origin", "https://localhost:4000")
-                        .header("Access-Control-Request-Method", "POST").header("Access-Control-Request-Headers", "Content-Type"))
-                .andExpect(status().isOk()).andExpect(header().string("Access-Control-Allow-Origin", "https://localhost:4000"));
-        mvc.perform(get("/openapi.yaml")).andExpect(status().isOk());
-        mvc.perform(get("/swagger-ui.html")).andExpect(status().isOk());
-        mvc.perform(get("/webjars/swagger-ui/5.18.2/swagger-ui.css")).andExpect(status().isOk());
+    void supportsCorsPreflightAndDocumentation() {
+        client.options().uri("/api/study-groups").header("Origin", "https://localhost:4000")
+                .header("Access-Control-Request-Method", "POST").header("Access-Control-Request-Headers", "Content-Type,sentry-trace,baggage")
+                .exchange().expectStatus().isOk().expectHeader().valueEquals("Access-Control-Allow-Origin", "https://localhost:4000");
+        for (String path : List.of("/openapi.yaml", "/swagger-ui.html", "/webjars/swagger-ui/5.18.2/swagger-ui.css")) {
+            client.get().uri(path).exchange().expectStatus().isOk();
+        }
     }
 
     @Test
     void storesShareOneCollection() throws Exception {
-        StudyGroupStore first = new StudyGroupStore(jdbc, json);
-        StudyGroupStore second = new StudyGroupStore(jdbc, json);
+        StudyGroupStore first = new StudyGroupStore(database, json);
+        StudyGroupStore second = new StudyGroupStore(database, json);
         var request = json.readValue(BODY, ru.itmo.soa.model.ApiModels.StudyGroupRequest.class);
-        var created = first.create(request);
-        assertEquals("Math", second.find(created.getId()).getName());
+        var created = first.create(request).block();
+        assertEquals("Math", second.find(created.getId()).block().getName());
         request.setName("Physics");
-        second.update(created.getId(), request);
-        assertEquals("Physics", first.find(created.getId()).getName());
-        second.delete(created.getId());
-        assertTrue(first.snapshot().isEmpty());
+        second.update(created.getId(), request).block();
+        assertEquals("Physics", first.find(created.getId()).block().getName());
+        second.delete(created.getId()).block();
+        reactor.test.StepVerifier.create(first.snapshot()).verifyComplete();
     }
 }

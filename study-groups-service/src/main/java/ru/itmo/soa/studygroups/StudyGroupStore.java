@@ -2,17 +2,15 @@ package ru.itmo.soa.studygroups;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Timestamp;
-import java.time.Instant;
-import java.util.List;
+import io.r2dbc.spi.Row;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.Map;
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.support.GeneratedKeyHolder;
+import org.springframework.r2dbc.core.DatabaseClient;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 import ru.itmo.soa.error.ApiException;
 import ru.itmo.soa.error.ErrorCode;
 import ru.itmo.soa.model.ApiModels.StudyGroup;
@@ -20,52 +18,51 @@ import ru.itmo.soa.model.ApiModels.StudyGroupRequest;
 
 @Repository
 public class StudyGroupStore {
-    private final JdbcTemplate jdbc;
+    private final DatabaseClient database;
     private final ObjectMapper json;
 
-    public StudyGroupStore(JdbcTemplate jdbc, ObjectMapper json) {
-        this.jdbc = jdbc;
+    public StudyGroupStore(DatabaseClient database, ObjectMapper json) {
+        this.database = database;
         this.json = json;
     }
 
     @Transactional
-    public StudyGroup create(StudyGroupRequest request) {
-        String payload = encode(request);
-        GeneratedKeyHolder key = new GeneratedKeyHolder();
-        jdbc.update(connection -> {
-            PreparedStatement statement = connection.prepareStatement(
-                    "INSERT INTO study_groups (creation_date, payload) VALUES (?, ?)", new String[]{"id"});
-            statement.setTimestamp(1, Timestamp.from(Instant.now()));
-            statement.setString(2, payload);
-            return statement;
-        }, key);
-        return find(java.util.Objects.requireNonNull(key.getKey()).intValue());
+    public Mono<StudyGroup> create(StudyGroupRequest request) {
+        return Mono.defer(() -> database.sql("INSERT INTO study_groups (creation_date, payload) VALUES (:date, :payload)")
+                .bind("date", OffsetDateTime.now(ZoneOffset.UTC)).bind("payload", encode(request))
+                .filter(statement -> statement.returnGeneratedValues("id"))
+                .map((row, metadata) -> row.get("id", Integer.class)).one()
+                .flatMap(this::find));
     }
 
-    public StudyGroup find(int id) {
-        List<StudyGroup> groups = jdbc.query("SELECT id, creation_date, payload FROM study_groups WHERE id = ?", this::mapGroup, id);
-        if (groups.isEmpty()) throw notFound(id);
-        return groups.get(0);
+    public Mono<StudyGroup> find(int id) {
+        return database.sql("SELECT id, creation_date, payload FROM study_groups WHERE id = :id")
+                .bind("id", id).map((row, metadata) -> mapGroup(row)).one()
+                .switchIfEmpty(Mono.error(notFound(id)));
     }
 
     @Transactional
-    public StudyGroup update(int id, StudyGroupRequest request) {
-        if (jdbc.update("UPDATE study_groups SET payload = ? WHERE id = ?", encode(request), id) == 0) throw notFound(id);
-        return find(id);
+    public Mono<StudyGroup> update(int id, StudyGroupRequest request) {
+        return Mono.defer(() -> database.sql("UPDATE study_groups SET payload = :payload WHERE id = :id")
+                .bind("payload", encode(request)).bind("id", id).fetch().rowsUpdated()
+                .flatMap(count -> count == 0 ? Mono.error(notFound(id)) : find(id)));
     }
 
-    public void delete(int id) {
-        if (jdbc.update("DELETE FROM study_groups WHERE id = ?", id) == 0) throw notFound(id);
+    public Mono<Void> delete(int id) {
+        return database.sql("DELETE FROM study_groups WHERE id = :id").bind("id", id).fetch().rowsUpdated()
+                .flatMap(count -> count == 0 ? Mono.error(notFound(id)) : Mono.empty());
     }
 
-    public List<StudyGroup> snapshot() {
-        return jdbc.query("SELECT id, creation_date, payload FROM study_groups ORDER BY id", this::mapGroup);
+    public Flux<StudyGroup> snapshot() {
+        return database.sql("SELECT id, creation_date, payload FROM study_groups ORDER BY id")
+                .map((row, metadata) -> mapGroup(row)).all();
     }
 
-    private StudyGroup mapGroup(ResultSet row, int rowNumber) throws SQLException {
+    private StudyGroup mapGroup(Row row) {
         try {
-            StudyGroupRequest request = json.readValue(row.getString("payload"), StudyGroupRequest.class);
-            return new StudyGroup(row.getInt("id"), row.getTimestamp("creation_date").toInstant(), request);
+            StudyGroupRequest request = json.readValue(row.get("payload", String.class), StudyGroupRequest.class);
+            return new StudyGroup(row.get("id", Integer.class),
+                    row.get("creation_date", OffsetDateTime.class).toInstant(), request);
         } catch (JsonProcessingException exception) {
             throw new IllegalStateException("Не удалось прочитать учебную группу из хранилища", exception);
         }

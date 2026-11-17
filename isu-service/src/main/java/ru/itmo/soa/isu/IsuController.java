@@ -1,6 +1,7 @@
 package ru.itmo.soa.isu;
 
 import java.util.Map;
+import reactor.core.publisher.Mono;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import ru.itmo.soa.error.ApiException;
@@ -18,12 +19,12 @@ public class IsuController {
     }
 
     @PostMapping("/group/{groupId}/expel-all")
-    public ActionResult expelAll(@PathVariable String groupId) {
+    public Mono<ActionResult> expelAll(@PathVariable String groupId) {
         return service.expelAll(RequestValidation.positiveId(groupId, "groupId"));
     }
 
     @PostMapping("/group/{groupId}/change-edu-form/{newForm}")
-    public StudyGroup changeEducationForm(@PathVariable String groupId, @PathVariable String newForm) {
+    public Mono<StudyGroup> changeEducationForm(@PathVariable String groupId, @PathVariable String newForm) {
         final FormOfEducation form;
         try {
             form = FormOfEducation.valueOf(newForm);

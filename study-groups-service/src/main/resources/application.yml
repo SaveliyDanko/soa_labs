@@ -1,0 +1,7 @@
+spring:
+  application:
+    name: study-groups-service
+  main:
+    web-application-type: reactive
+  config:
+    import: configserver:${CONFIG_SERVER_URL:http://localhost:8888}

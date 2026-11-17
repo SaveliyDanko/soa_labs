@@ -7,14 +7,14 @@
 ## Архитектура
 
 ```text
-Браузер — HTTPS → Nginx (клиент и TLS) → Zuul API Gateway
-                                        ├─ Ribbon + Eureka
+Браузер — HTTPS → Nginx (клиент и TLS) → Spring Cloud Gateway (WebFlux)
+                                        ├─ LoadBalancer + Eureka
                                         │   ├─ study-groups-1:8181 ─┐
                                         │   └─ study-groups-2:8182 ─┴─ PostgreSQL
                                         └─ HAProxy:9000
                                             ├─ isu-1:8281
                                             └─ isu-2:8282
-                                                   └─ Zuul → study-groups
+                                                   └─ Gateway → study-groups
 
 Config Server:8888 → общие настройки, study-groups, ISU, Gateway
 Eureka:8761       ← регистрация обоих экземпляров study-groups
@@ -24,17 +24,29 @@ Eureka:8761       ← регистрация обоих экземпляров s
 |---|---|
 | Config Service | Spring Cloud Config Server, файловый native-репозиторий `config-repo/` |
 | Service Discovery | Eureka; регистрация, heartbeat и динамический список экземпляров |
-| Load Balancer вызываемого сервиса | Ribbon в Zuul, правило RoundRobinRule |
-| API Gateway | Zuul; API, Swagger и межсервисные вызовы проходят через него |
+| Load Balancer вызываемого сервиса | Spring Cloud LoadBalancer, RoundRobinLoadBalancer |
+| API Gateway | Spring Cloud Gateway; API, Swagger и межсервисные вызовы проходят через него |
 | Вызывающий сервис на Spring Boot | Два процесса ISU, порты 8281 и 8282 |
 | Балансировка вызывающего сервиса | HAProxy, roundrobin и HTTP health checks |
 | Согласованность экземпляров | Общая PostgreSQL вместо отдельных коллекций в памяти |
 
-Используются Java 11, Spring Boot 2.3.12.RELEASE и Spring Cloud Hoxton.SR12.
-Это намеренно совместимая legacy-линейка: требуемые заданием Ribbon и Zuul 1
-не входят в современные версии Spring Cloud. Для учебного стенда, не для
-публикации в интернете. Совместимость линейки описана в
-[релизе Hoxton.SR12](https://spring.io/blog/2021/07/07/spring-cloud-hoxton-sr12-has-been-released/).
+Используются Java 11, Spring Boot 2.7.18 и Spring Cloud 2021.0.9
+([совместимость версий](https://spring.io/blog/2023/12/20/spring-cloud-2021-0-9-aka-jubilee-is-now-available/)).
+Шлюз и оба прикладных сервиса работают на WebFlux / Reactor Netty:
+контроллеры и сервисы возвращают Mono/Flux, межсервисный HTTP использует WebClient,
+PostgreSQL — R2DBC с пулом соединений. JDBC, RestTemplate и Servlet-фильтры
+удалены из цепочки прикладных запросов.
+
+Zuul 1 и Ribbon из исходного задания заменены на Spring Cloud Gateway и
+Spring Cloud LoadBalancer: старый шлюз не поддерживает реактивную обработку.
+Config Server и Eureka остаются инфраструктурными Servlet-приложениями,
+поскольку их серверные реализации не поддерживают WebFlux. Это исключение
+не затрагивает обработку прикладного API.
+
+Для сохранения Java 11 используется завершившая открытую поддержку линейка
+Spring Boot 2.7; переход на актуальную линейку требует отдельного обновления JDK.
+Фильтрация, сортировка и пагинация пока выполняются в памяти после реактивного
+чтения коллекции: I/O не блокируется, но память и CPU зависят от размера коллекции.
 
 ## Запуск
 
@@ -63,8 +75,8 @@ Docker собирает JAR и выполняет Java-тесты под Java 11
 | Config Server (только loopback) | http://localhost:8888/study-groups-service/default |
 | Статистика HAProxy (только loopback) | http://localhost:9001/stats |
 
-Порты 3000, 8181 и 8443 ведут в один HTTPS-вход, далее — в Zuul.
-Порты экземпляров, PostgreSQL и самого Zuul на хост **не публикуются**.
+Порты 3000, 8181 и 8443 ведут в один HTTPS-вход, далее — в Spring Cloud Gateway.
+Порты экземпляров, PostgreSQL и самого Gateway на хост **не публикуются**.
 Внутри Docker-сети используется HTTP; TLS завершается на Nginx.
 Административные endpoints Config/Eureka/HAProxy не являются публичным API.
 Имена переменных `PAYARA_HTTPS_PORT` и `WILDFLY_HTTPS_PORT` сохранены только
@@ -100,12 +112,12 @@ python3 scripts/verify-lab3.py --failover
 Остановленные экземпляры восстанавливаются в блоках `finally`.
 Ответы прикладных сервисов содержат `X-Service-Instance`;
 `X-Config-Source: spring-cloud-config` подтверждает получение общей настройки,
-`X-Gateway: zuul` — прохождение через gateway.
+`X-Gateway: spring-cloud-gateway` — прохождение через gateway.
 По серии запросов видны обе реплики каждой пары. При выключении реплики
-Eureka/Ribbon обновляют реестр не мгновенно; скрипт учитывает время сходимости.
+Eureka/LoadBalancer обновляют реестр не мгновенно; скрипт учитывает время сходимости.
 HAProxy и Nginx повторно разрешают имена через Docker DNS, поэтому смена IP
 после перезапуска контейнеров не требует перезапуска балансировщиков.
-Автоматические повторные попытки Ribbon отключены, чтобы POST/PUT/DELETE
+Автоматические повторные попытки LoadBalancer и HTTP-транспорта отключены, чтобы POST/PUT/DELETE
 не выполнялись повторно при неопределённом результате сетевого запроса.
 
 Центральные настройки находятся в `config-repo/*.yml`; при запуске клиенты
@@ -115,6 +127,39 @@ Config Server разрешает переопределять значения �
 После изменения файлов перезапустите потребителей:
 `docker compose restart study-groups-1 study-groups-2 isu-1 isu-2 api-gateway`.
 Автоматическое горячее обновление через Bus не реализовано и заданием не требуется.
+
+## Sentry
+
+Во всех пяти типах Java-приложений подключён `sentry-spring-boot-starter`
+(для Spring Boot 2, без Jakarta). Шлюз, study-groups и ISU используют
+[интеграцию Sentry с WebFlux](https://github.com/getsentry/sentry-java/blob/8.61.1/sentry-spring-boot/src/main/java/io/sentry/spring/boot/SentryWebfluxAutoConfiguration.java).
+Общий обработчик API отправляет серверные ошибки 5xx в Sentry ровно один раз,
+используя scope текущего запроса после асинхронного I/O. Ожидаемые ошибки
+валидации и 4xx в Sentry не отправляются. Сбои соединения и HTML-ошибки HAProxy
+также регистрируются. Ошибки, уже обработанные upstream и возвращённые в JSON,
+шлюз пропускает без повторной регистрации.
+
+1. Создайте проект Java / Spring Boot в Sentry и скопируйте его DSN.
+2. Скопируйте `.env.example` в `.env` и задайте `SENTRY_DSN`.
+3. Запустите или пересоздайте приложения: `docker compose up -d --build`.
+
+Переменные:
+
+| Переменная | Назначение / значение по умолчанию |
+|---|---|
+| `SENTRY_DSN` | Адрес проекта; пустое значение отключает отправку событий |
+| `SENTRY_ENVIRONMENT` | Окружение, `local` |
+| `SENTRY_RELEASE` | Версия релиза, `soa-lab3@3.0.0` |
+| `SENTRY_TRACES_SAMPLE_RATE` | Доля транзакций от 0 до 1, `0.0` (трейсинг отключён) |
+
+События прикладного API содержат теги `service`, `instance`, `error.code`,
+`http.status_code`, `http.method`. `server-name` различает реплики.
+По умолчанию отправка PII выключена. Для локального запуска JAR экспортируйте
+те же переменные окружения; значения в `.env` автоматически читает только Compose.
+Без реального DSN можно проверить интеграцию Java-тестами, которые подменяют
+Sentry scopes и проверяют 5xx, отсутствие дублей и игнорирование 4xx.
+Не храните локальную `.env` в Git.
+
 
 ## Совместимость API
 
@@ -131,7 +176,7 @@ POST /isu/group/{id}/change-edu-form/{newForm}
 ```
 
 Общий `common-api` задаёт строгую JSON-сериализацию, валидацию, CORS и
-обработчики Spring MVC. Ошибки имеют поля `timestamp`, `status`, `code`,
+обработчики WebFlux. Ошибки имеют поля `timestamp`, `status`, `code`,
 `message`, `path` и при необходимости `details`/`violations`.
 Человекочитаемые сообщения — на русском, включая сетевые сбои;
 HTTP-заголовок `Content-Language: ru`. Некорректный JSON: 400,
@@ -150,9 +195,9 @@ mvn clean verify
 node --test web-client/test/errors.test.cjs
 ```
 
-Тесты покрывают сортировку/фильтрацию, бизнес-операции, Spring MVC, JSON,
+Тесты покрывают сортировку/фильтрацию, бизнес-операции, WebFlux, JSON,
 русские ошибки, CORS, Location за HTTPS-прокси, хранение через два экземпляра
-репозитория и HTTP-клиент ISU. Для тестов БД используется H2;
+репозитория и HTTP-клиент ISU. Для тестов БД используется R2DBC H2;
 интеграционная проверка стенда использует настоящую PostgreSQL.
 
 Старые WAR-дескрипторы, сборка Payara/WildFly и переносимый Java-прокси заменены

@@ -3,8 +3,10 @@ package ru.itmo.soa.isu;
 import ru.itmo.soa.model.ApiModels.StudyGroup;
 import ru.itmo.soa.model.ApiModels.StudyGroupRequest;
 
+import reactor.core.publisher.Mono;
+
 public interface StudyGroupsClient {
-    StudyGroup get(int id);
-    StudyGroup update(int id, StudyGroupRequest request);
-    void delete(int id);
+    Mono<StudyGroup> get(int id);
+    Mono<StudyGroup> update(int id, StudyGroupRequest request);
+    Mono<Void> delete(int id);
 }

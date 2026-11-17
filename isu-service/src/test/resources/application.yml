@@ -1,0 +1,8 @@
+spring:
+  application:
+    name: isu-service
+  main:
+    web-application-type: reactive
+  cloud:
+    config:
+      enabled: false

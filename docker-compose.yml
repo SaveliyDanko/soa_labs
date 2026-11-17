@@ -3,6 +3,10 @@ name: soa-lab3
 x-java: &java
   restart: unless-stopped
   environment: &java-env
+    SENTRY_DSN: ${SENTRY_DSN:-}
+    SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-local}
+    SENTRY_RELEASE: ${SENTRY_RELEASE:-soa-lab3@3.0.0}
+    SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0.0}
     CONFIG_SERVER_URL: http://config-service:8888
     EUREKA_URL: http://discovery-service:8761/eureka/
   healthcheck:
@@ -32,6 +36,7 @@ services:
     <<: *java
     build: {context: ., dockerfile: docker/spring/Dockerfile, args: {MODULE: config-service}}
     environment:
+      <<: *java-env
       SERVER_PORT: 8888
       CONFIG_REPO: file:/config-repo
     volumes: ["./config-repo:/config-repo:ro"]
@@ -41,6 +46,7 @@ services:
     <<: *java
     build: {context: ., dockerfile: docker/spring/Dockerfile, args: {MODULE: discovery-service}}
     environment:
+      <<: *java-env
       SERVER_PORT: 8761
     ports: ["127.0.0.1:${EUREKA_PORT:-8761}:8761"]
 
@@ -51,7 +57,7 @@ services:
       <<: *java-env
       SERVER_PORT: 8181
       LAB_INSTANCE_ID: study-groups-1
-      DB_URL: jdbc:postgresql://postgres:5432/study_groups
+      R2DBC_URL: r2dbc:postgresql://postgres:5432/study_groups
       DB_PASSWORD: ${DB_PASSWORD:-soa-lab}
     depends_on:
       postgres: {condition: service_healthy}
@@ -65,7 +71,7 @@ services:
       <<: *java-env
       SERVER_PORT: 8182
       LAB_INSTANCE_ID: study-groups-2
-      DB_URL: jdbc:postgresql://postgres:5432/study_groups
+      R2DBC_URL: r2dbc:postgresql://postgres:5432/study_groups
       DB_PASSWORD: ${DB_PASSWORD:-soa-lab}
     depends_on:
       postgres: {condition: service_healthy}

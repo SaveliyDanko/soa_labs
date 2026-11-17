@@ -1,6 +1,7 @@
 package ru.itmo.soa.isu;
 
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Mono;
 import ru.itmo.soa.model.ApiModels.ActionResult;
 import ru.itmo.soa.model.ApiModels.FormOfEducation;
 import ru.itmo.soa.model.ApiModels.StudyGroup;
@@ -14,16 +15,16 @@ public class IsuService {
         this.client = client;
     }
 
-    public ActionResult expelAll(int groupId) {
-        client.delete(groupId);
-        return new ActionResult("ALL_STUDENTS_EXPELLED",
-                "Все студенты отчислены; пустая группа удалена", groupId);
+    public Mono<ActionResult> expelAll(int groupId) {
+        return client.delete(groupId).thenReturn(new ActionResult("ALL_STUDENTS_EXPELLED",
+                "Все студенты отчислены; пустая группа удалена", groupId));
     }
 
-    public StudyGroup changeEducationForm(int groupId, FormOfEducation newForm) {
-        StudyGroup current = client.get(groupId);
-        StudyGroupRequest request = current.toRequest();
-        request.setFormOfEducation(newForm);
-        return client.update(groupId, request);
+    public Mono<StudyGroup> changeEducationForm(int groupId, FormOfEducation newForm) {
+        return client.get(groupId).flatMap(current -> {
+            StudyGroupRequest request = current.toRequest();
+            request.setFormOfEducation(newForm);
+            return client.update(groupId, request);
+        });
     }
 }

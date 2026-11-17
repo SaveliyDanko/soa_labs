@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.annotation.JsonInclude;
-import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.boot.autoconfigure.jackson.Jackson2ObjectMapperBuilderCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -12,15 +11,16 @@ import org.springframework.context.annotation.Import;
 import org.springframework.core.Ordered;
 import org.springframework.core.env.Environment;
 import org.springframework.web.cors.CorsConfiguration;
-import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
-import org.springframework.web.filter.CorsFilter;
+import org.springframework.web.cors.reactive.UrlBasedCorsConfigurationSource;
+import org.springframework.web.cors.reactive.CorsWebFilter;
+import org.springframework.web.server.WebFilter;
+import org.springframework.core.annotation.Order;
 import ru.itmo.soa.error.ApiExceptionHandler;
-import ru.itmo.soa.error.ApiErrorController;
-import javax.servlet.Filter;
+import ru.itmo.soa.error.ApiErrorReporter;
 import java.util.List;
 
 @Configuration
-@Import({ApiExceptionHandler.class, ApiErrorController.class})
+@Import({ApiExceptionHandler.class, ApiErrorReporter.class})
 public class ApiWebConfiguration {
     @Bean
     public Jackson2ObjectMapperBuilderCustomizer apiJson() {
@@ -32,32 +32,32 @@ public class ApiWebConfiguration {
     }
 
     @Bean
-    public FilterRegistrationBean<CorsFilter> apiCors() {
+    @Order(Ordered.HIGHEST_PRECEDENCE + 1)
+    public CorsWebFilter apiCors() {
         CorsConfiguration cors = new CorsConfiguration();
-        cors.setAllowedOrigins(List.of("*"));
+        cors.setAllowedOriginPatterns(List.of("*"));
         cors.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"));
-        cors.setAllowedHeaders(List.of("Content-Type", "Accept"));
+        cors.setAllowedHeaders(List.of("Content-Type", "Accept", "sentry-trace", "baggage"));
         cors.setExposedHeaders(List.of("Location", "X-Service-Instance", "X-Gateway", "X-Config-Source"));
         cors.setAllowCredentials(true);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", cors);
-        FilterRegistrationBean<CorsFilter> filter = new FilterRegistrationBean<>(new CorsFilter(source));
-        filter.setOrder(Ordered.HIGHEST_PRECEDENCE);
-        return filter;
+        return new CorsWebFilter(source);
     }
 
     @Bean
-    public FilterRegistrationBean<Filter> instanceHeaders(Environment environment) {
-        FilterRegistrationBean<Filter> filter = new FilterRegistrationBean<>();
-        filter.setFilter((request, response, chain) -> {
-            javax.servlet.http.HttpServletResponse http = (javax.servlet.http.HttpServletResponse) response;
-            if (!"api-gateway".equals(environment.getProperty("spring.application.name"))) {
-                http.setHeader("X-Service-Instance", environment.getProperty("lab.instance-id",
-                    environment.getProperty("spring.application.name", "service") + ":" + environment.getProperty("server.port", "8080")));
-                http.setHeader("X-Config-Source", environment.getProperty("lab.config-source", "local"));
+    public WebFilter instanceHeaders(Environment environment) {
+        return (exchange, chain) -> {
+            var headers = exchange.getResponse().getHeaders();
+            if ("api-gateway".equals(environment.getProperty("spring.application.name"))) {
+                headers.set("X-Gateway", "spring-cloud-gateway");
+            } else {
+                headers.set("X-Service-Instance", environment.getProperty("lab.instance-id",
+                        environment.getProperty("spring.application.name", "service") + ":"
+                                + environment.getProperty("server.port", "8080")));
+                headers.set("X-Config-Source", environment.getProperty("lab.config-source", "local"));
             }
-            chain.doFilter(request, response);
-        });
-        return filter;
+            return chain.filter(exchange);
+        };
     }
 }

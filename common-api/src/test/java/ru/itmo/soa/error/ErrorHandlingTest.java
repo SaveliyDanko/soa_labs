@@ -3,7 +3,7 @@ package ru.itmo.soa.error;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
-import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.http.HttpHeaders;
 import ru.itmo.soa.model.ApiModels.*;
 import javax.validation.Validation;
 import javax.validation.ValidatorFactory;
@@ -33,8 +33,7 @@ class ErrorHandlingTest {
 
     @Test
     void responsePreservesTheLab2Contract() {
-        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/study-groups/7");
-        var response = new ApiExceptionHandler().api(new ApiException(ErrorCode.STUDY_GROUP_NOT_FOUND, Map.of("id", "7")), request);
+        var response = ApiExceptionHandler.response(new ApiException(ErrorCode.STUDY_GROUP_NOT_FOUND, Map.of("id", "7")), "/api/study-groups/7", new HttpHeaders());
         ApiErrorResponse body = (ApiErrorResponse) response.getBody();
         assertEquals(404, response.getStatusCodeValue());
         assertEquals("ru", response.getHeaders().getContentLanguage().getLanguage());

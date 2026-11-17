@@ -51,7 +51,7 @@ def eventually(check, timeout=90):
 
 def traced(path, method="GET"):
     value, headers = request(path, method)
-    assert headers.get("X-Gateway") == "zuul", dict(headers)
+    assert headers.get("X-Gateway") == "spring-cloud-gateway", dict(headers)
     assert headers.get("X-Config-Source") == "spring-cloud-config", dict(headers)
     return value, headers["X-Service-Instance"]
 
@@ -103,7 +103,7 @@ def verify(failover):
         assert updated["studentsCount"] == 31 and updated["creationDate"] == created["creationDate"]
         legacy_groups = os.environ.get("PAYARA_URL", "https://localhost:" + os.environ.get("PAYARA_HTTPS_PORT", "8181"))
         legacy, headers = request(legacy_groups + path)
-        assert legacy["id"] == group_id and headers["X-Gateway"] == "zuul"
+        assert legacy["id"] == group_id and headers["X-Gateway"] == "spring-cloud-gateway"
         balance(path, ("study-groups-1", "study-groups-2"))
         for _ in range(6):
             group, _ = traced(path)
@@ -177,7 +177,7 @@ def verify(failover):
         assert error["code"] == "STUDY_GROUP_NOT_FOUND"
         legacy_isu = os.environ.get("ISU_URL", "https://localhost:" + os.environ.get("WILDFLY_HTTPS_PORT", "8443"))
         error, headers = request(legacy_isu + f"/isu/group/{group_id}/expel-all", "POST", status=404)
-        assert error["code"] == "STUDY_GROUP_NOT_FOUND" and headers["X-Gateway"] == "zuul"
+        assert error["code"] == "STUDY_GROUP_NOT_FOUND" and headers["X-Gateway"] == "spring-cloud-gateway"
         print("Проверка lab-3 завершена успешно.", flush=True)
     finally:
         for group_id in tracked:
