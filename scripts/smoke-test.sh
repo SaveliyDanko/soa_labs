@@ -1,4 +1,4 @@
 #!/usr/bin/env sh
 set -eu
 project_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-exec python3 "$project_dir/scripts/verify-lab3.py" "$@"
+exec python3 "$project_dir/scripts/verify-lab4.py" "$@"

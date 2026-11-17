@@ -1,0 +1,814 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: config-service
+spec:
+  selector:
+    app.kubernetes.io/name: config-service
+  ports:
+  - name: http
+    port: 8888
+    targetPort: 8888
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: config-service
+spec:
+  replicas: 1
+  revisionHistoryLimit: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: config-service
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: config-service
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 40
+      containers:
+      - name: config-service
+        image: soa-lab4/config-service:dev
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: http
+          containerPort: 8888
+        env:
+        - name: SERVER_PORT
+          value: '8888'
+        - name: JAVA_TOOL_OPTIONS
+          value: -XX:ActiveProcessorCount=2 -Xms64m -Xmx256m
+        - name: CONFIG_SERVER_URL
+          value: http://config-service:8888
+        - name: EUREKA_URL
+          value: http://discovery-service:8761/eureka/
+        - name: MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED
+          value: 'true'
+        - name: LAB_INSTANCE_ID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: SENTRY_DSN
+          valueFrom:
+            secretKeyRef:
+              name: lab-secrets
+              key: sentry-dsn
+        - name: SENTRY_RELEASE
+          value: soa-lab4@4.0.0
+        - name: CONFIG_REPO
+          value: file:/config-repo
+        resources:
+          requests:
+            cpu: 100m
+            memory: 192Mi
+          limits:
+            cpu: '1'
+            memory: 512Mi
+        startupProbe:
+          httpGet:
+            path: /actuator/health/liveness
+            port: http
+          periodSeconds: 5
+          failureThreshold: 90
+        readinessProbe:
+          httpGet:
+            path: /actuator/health/readiness
+            port: http
+          periodSeconds: 5
+          timeoutSeconds: 3
+        livenessProbe:
+          httpGet:
+            path: /actuator/health/liveness
+            port: http
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 3
+        volumeMounts:
+        - name: configuration
+          mountPath: /config-repo
+          readOnly: true
+      volumes:
+      - name: configuration
+        configMap:
+          name: spring-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: discovery-service
+spec:
+  selector:
+    app.kubernetes.io/name: discovery-service
+  ports:
+  - name: http
+    port: 8761
+    targetPort: 8761
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: discovery-service
+spec:
+  replicas: 1
+  revisionHistoryLimit: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: discovery-service
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: discovery-service
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 40
+      containers:
+      - name: discovery-service
+        image: soa-lab4/discovery-service:dev
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: http
+          containerPort: 8761
+        env:
+        - name: SERVER_PORT
+          value: '8761'
+        - name: JAVA_TOOL_OPTIONS
+          value: -XX:ActiveProcessorCount=2 -Xms64m -Xmx256m
+        - name: CONFIG_SERVER_URL
+          value: http://config-service:8888
+        - name: EUREKA_URL
+          value: http://discovery-service:8761/eureka/
+        - name: MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED
+          value: 'true'
+        - name: LAB_INSTANCE_ID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: SENTRY_DSN
+          valueFrom:
+            secretKeyRef:
+              name: lab-secrets
+              key: sentry-dsn
+        - name: SENTRY_RELEASE
+          value: soa-lab4@4.0.0
+        resources:
+          requests:
+            cpu: 100m
+            memory: 192Mi
+          limits:
+            cpu: '1'
+            memory: 512Mi
+        startupProbe:
+          httpGet:
+            path: /actuator/health/liveness
+            port: http
+          periodSeconds: 5
+          failureThreshold: 90
+        readinessProbe:
+          httpGet:
+            path: /actuator/health/readiness
+            port: http
+          periodSeconds: 5
+          timeoutSeconds: 3
+        livenessProbe:
+          httpGet:
+            path: /actuator/health/liveness
+            port: http
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: study-groups-service
+spec:
+  selector:
+    app.kubernetes.io/name: study-groups-service
+  ports:
+  - name: http
+    port: 8181
+    targetPort: 8181
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: study-groups-service
+spec:
+  replicas: 2
+  revisionHistoryLimit: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: study-groups-service
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: study-groups-service
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 40
+      containers:
+      - name: study-groups-service
+        image: soa-lab4/study-groups-service:dev
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: http
+          containerPort: 8181
+        env:
+        - name: SERVER_PORT
+          value: '8181'
+        - name: JAVA_TOOL_OPTIONS
+          value: -XX:ActiveProcessorCount=2 -Xms64m -Xmx256m
+        - name: CONFIG_SERVER_URL
+          value: http://config-service:8888
+        - name: EUREKA_URL
+          value: http://discovery-service:8761/eureka/
+        - name: MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED
+          value: 'true'
+        - name: LAB_INSTANCE_ID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: SENTRY_DSN
+          valueFrom:
+            secretKeyRef:
+              name: lab-secrets
+              key: sentry-dsn
+        - name: SENTRY_RELEASE
+          value: soa-lab4@4.0.0
+        - name: R2DBC_URL
+          value: r2dbc:postgresql://postgres:5432/study_groups
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: lab-secrets
+              key: db-password
+        - name: MANAGEMENT_ENDPOINT_HEALTH_GROUP_READINESS_INCLUDE
+          value: readinessState,r2dbc
+        resources:
+          requests:
+            cpu: 100m
+            memory: 192Mi
+          limits:
+            cpu: '1'
+            memory: 512Mi
+        startupProbe:
+          httpGet:
+            path: /actuator/health/liveness
+            port: http
+          periodSeconds: 5
+          failureThreshold: 90
+        readinessProbe:
+          httpGet:
+            path: /actuator/health/readiness
+            port: http
+          periodSeconds: 5
+          timeoutSeconds: 3
+        livenessProbe:
+          httpGet:
+            path: /actuator/health/liveness
+            port: http
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 3
+      initContainers:
+      - name: wait-for-config
+        image: busybox:1.37
+        command:
+        - sh
+        - -c
+        - until wget -q -O /dev/null http://config-service:8888/actuator/health; do
+          sleep 2; done
+        resources:
+          requests:
+            cpu: 10m
+            memory: 16Mi
+          limits:
+            cpu: 100m
+            memory: 32Mi
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: study-groups-service
+              topologyKey: kubernetes.io/hostname
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-gateway
+spec:
+  selector:
+    app.kubernetes.io/name: api-gateway
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+spec:
+  replicas: 1
+  revisionHistoryLimit: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: api-gateway
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: api-gateway
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 40
+      containers:
+      - name: api-gateway
+        image: soa-lab4/api-gateway:dev
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: http
+          containerPort: 8080
+        env:
+        - name: SERVER_PORT
+          value: '8080'
+        - name: JAVA_TOOL_OPTIONS
+          value: -XX:ActiveProcessorCount=2 -Xms64m -Xmx256m
+        - name: CONFIG_SERVER_URL
+          value: http://config-service:8888
+        - name: EUREKA_URL
+          value: http://discovery-service:8761/eureka/
+        - name: MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED
+          value: 'true'
+        - name: LAB_INSTANCE_ID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: SENTRY_DSN
+          valueFrom:
+            secretKeyRef:
+              name: lab-secrets
+              key: sentry-dsn
+        - name: SENTRY_RELEASE
+          value: soa-lab4@4.0.0
+        - name: ISU_REST_URL
+          value: http://isu-rest-adapter:8281
+        - name: MULE_ESB_URL
+          value: http://mule-esb:8081
+        resources:
+          requests:
+            cpu: 100m
+            memory: 192Mi
+          limits:
+            cpu: '1'
+            memory: 512Mi
+        startupProbe:
+          httpGet:
+            path: /actuator/health/liveness
+            port: http
+          periodSeconds: 5
+          failureThreshold: 90
+        readinessProbe:
+          httpGet:
+            path: /actuator/health/readiness
+            port: http
+          periodSeconds: 5
+          timeoutSeconds: 3
+        livenessProbe:
+          httpGet:
+            path: /actuator/health/liveness
+            port: http
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 3
+      initContainers:
+      - name: wait-for-config
+        image: busybox:1.37
+        command:
+        - sh
+        - -c
+        - until wget -q -O /dev/null http://config-service:8888/actuator/health; do
+          sleep 2; done
+        resources:
+          requests:
+            cpu: 10m
+            memory: 16Mi
+          limits:
+            cpu: 100m
+            memory: 32Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: isu-service
+spec:
+  selector:
+    app.kubernetes.io/name: isu-service
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: isu-service
+spec:
+  replicas: 2
+  revisionHistoryLimit: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: isu-service
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: isu-service
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 40
+      containers:
+      - name: isu-service
+        image: soa-lab4/isu-service:dev
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: http
+          containerPort: 8080
+        env:
+        - name: SERVER_PORT
+          value: '8080'
+        - name: JAVA_TOOL_OPTIONS
+          value: -XX:ActiveProcessorCount=2 -Xms64m -Xmx256m
+        - name: CONFIG_SERVER_URL
+          value: http://config-service:8888
+        - name: EUREKA_URL
+          value: http://discovery-service:8761/eureka/
+        - name: MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED
+          value: 'true'
+        - name: LAB_INSTANCE_ID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: SENTRY_DSN
+          valueFrom:
+            secretKeyRef:
+              name: lab-secrets
+              key: sentry-dsn
+        - name: SENTRY_RELEASE
+          value: soa-lab4@4.0.0
+        - name: MULE_ESB_URL
+          value: http://mule-esb:8081
+        - name: JAVA_OPTS
+          value: -XX:ActiveProcessorCount=2 -Xms64m -Xmx256m
+        resources:
+          requests:
+            cpu: 100m
+            memory: 192Mi
+          limits:
+            cpu: '1'
+            memory: 512Mi
+        startupProbe:
+          httpGet:
+            path: /actuator/health/liveness
+            port: http
+          periodSeconds: 5
+          failureThreshold: 90
+        readinessProbe:
+          httpGet:
+            path: /actuator/health/readiness
+            port: http
+          periodSeconds: 5
+          timeoutSeconds: 3
+        livenessProbe:
+          httpGet:
+            path: /actuator/health/liveness
+            port: http
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 3
+      initContainers:
+      - name: wait-for-config
+        image: busybox:1.37
+        command:
+        - sh
+        - -c
+        - until wget -q -O /dev/null http://config-service:8888/actuator/health; do
+          sleep 2; done
+        resources:
+          requests:
+            cpu: 10m
+            memory: 16Mi
+          limits:
+            cpu: 100m
+            memory: 32Mi
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: isu-service
+              topologyKey: kubernetes.io/hostname
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: isu-rest-adapter
+spec:
+  selector:
+    app.kubernetes.io/name: isu-rest-adapter
+  ports:
+  - name: http
+    port: 8281
+    targetPort: 8281
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: isu-rest-adapter
+spec:
+  replicas: 2
+  revisionHistoryLimit: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: isu-rest-adapter
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: isu-rest-adapter
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 40
+      containers:
+      - name: isu-rest-adapter
+        image: soa-lab4/isu-rest-adapter:dev
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: http
+          containerPort: 8281
+        env:
+        - name: SERVER_PORT
+          value: '8281'
+        - name: JAVA_TOOL_OPTIONS
+          value: -XX:ActiveProcessorCount=2 -Xms64m -Xmx256m
+        - name: CONFIG_SERVER_URL
+          value: http://config-service:8888
+        - name: EUREKA_URL
+          value: http://discovery-service:8761/eureka/
+        - name: MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED
+          value: 'true'
+        - name: LAB_INSTANCE_ID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: SENTRY_DSN
+          valueFrom:
+            secretKeyRef:
+              name: lab-secrets
+              key: sentry-dsn
+        - name: SENTRY_RELEASE
+          value: soa-lab4@4.0.0
+        - name: ISU_SOAP_URL
+          value: http://mule-esb:8081/soap/isu
+        resources:
+          requests:
+            cpu: 100m
+            memory: 192Mi
+          limits:
+            cpu: '1'
+            memory: 512Mi
+        startupProbe:
+          httpGet:
+            path: /actuator/health/liveness
+            port: http
+          periodSeconds: 5
+          failureThreshold: 90
+        readinessProbe:
+          httpGet:
+            path: /actuator/health/readiness
+            port: http
+          periodSeconds: 5
+          timeoutSeconds: 3
+        livenessProbe:
+          httpGet:
+            path: /actuator/health/liveness
+            port: http
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 3
+      initContainers:
+      - name: wait-for-config
+        image: busybox:1.37
+        command:
+        - sh
+        - -c
+        - until wget -q -O /dev/null http://config-service:8888/actuator/health; do
+          sleep 2; done
+        resources:
+          requests:
+            cpu: 10m
+            memory: 16Mi
+          limits:
+            cpu: 100m
+            memory: 32Mi
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: isu-rest-adapter
+              topologyKey: kubernetes.io/hostname
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mule-esb
+spec:
+  selector:
+    app.kubernetes.io/name: mule-esb
+  ports:
+  - name: http
+    port: 8081
+    targetPort: 8081
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mule-esb
+spec:
+  replicas: 1
+  revisionHistoryLimit: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: mule-esb
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: mule-esb
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 40
+      containers:
+      - name: mule-esb
+        image: soa-lab4/mule-esb:dev
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: http
+          containerPort: 8081
+        env:
+        - name: SOAP_HOST
+          value: isu-service
+        - name: SOAP_PORT
+          value: '8080'
+        - name: GATEWAY_HOST
+          value: api-gateway
+        - name: GATEWAY_PORT
+          value: '8080'
+        - name: HTTP_PORT
+          value: '8081'
+        - name: JAVA_TOOL_OPTIONS
+          value: -XX:ActiveProcessorCount=2
+        resources:
+          requests:
+            cpu: 100m
+            memory: 512Mi
+          limits:
+            cpu: '1'
+            memory: 1Gi
+        startupProbe:
+          httpGet:
+            path: /health
+            port: http
+          periodSeconds: 5
+          failureThreshold: 90
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: http
+          periodSeconds: 5
+          timeoutSeconds: 3
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: client
+spec:
+  selector:
+    app.kubernetes.io/name: client
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: client
+spec:
+  replicas: 1
+  revisionHistoryLimit: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: client
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: client
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 40
+      containers:
+      - name: client
+        image: soa-lab4/client:dev
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: http
+          containerPort: 8080
+        env: []
+        resources:
+          requests:
+            cpu: 100m
+            memory: 32Mi
+          limits:
+            cpu: '1'
+            memory: 128Mi
+        startupProbe:
+          httpGet:
+            path: /healthz
+            port: http
+          periodSeconds: 5
+          failureThreshold: 90
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: http
+          periodSeconds: 5
+          timeoutSeconds: 3
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: http
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 3
+        volumeMounts:
+        - name: configuration
+          mountPath: /etc/nginx/nginx.conf
+          subPath: nginx.conf
+          readOnly: true
+      volumes:
+      - name: configuration
+        configMap:
+          name: client-config

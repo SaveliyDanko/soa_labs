@@ -9,3 +9,4 @@ docker/tls/*.key
 docker/tls/*.p12
 .env
 .env.*
+.local

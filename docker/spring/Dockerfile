@@ -4,7 +4,6 @@ COPY . .
 RUN --mount=type=cache,target=/root/.m2 mvn -B -ntp -Daether.connector.requestTimeout=30000 verify
 
 FROM eclipse-temurin:11-jre-jammy
-RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
 ARG MODULE
 WORKDIR /app
 COPY --from=build /source/${MODULE}/target/${MODULE}.jar app.jar

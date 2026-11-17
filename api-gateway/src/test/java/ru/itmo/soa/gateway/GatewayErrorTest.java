@@ -14,13 +14,18 @@ import reactor.netty.http.server.HttpServer;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
         "spring.cloud.config.enabled=false", "eureka.client.enabled=false",
-        "spring.cloud.gateway.routes[0].id=upstream", "spring.cloud.gateway.routes[0].uri=${test.upstream}", "spring.cloud.gateway.routes[0].predicates[0]=Path=/isu/**",
+        "spring.cloud.gateway.routes[0].id=upstream", "spring.cloud.gateway.routes[0].uri=${test.upstream}", "spring.cloud.gateway.routes[0].predicates[0]=Path=/isu/**,/soap/**",
         "spring.cloud.gateway.routes[1].id=unavailable", "spring.cloud.gateway.routes[1].predicates[0]=Path=/unavailable/**",
         "spring.cloud.gateway.routes[1].uri=http://127.0.0.1:1"
 })
 @AutoConfigureWebTestClient
 class GatewayErrorTest {
     static final DisposableServer upstream = HttpServer.create().host("127.0.0.1").port(0).handle((request, response) -> {
+        if (request.uri().equals("/soap/isu")) {
+            return response.status(500).header("Content-Type", "text/xml; charset=UTF-8")
+                    .sendString(Mono.just("<s:Envelope xmlns:s='http://schemas.xmlsoap.org/soap/envelope/'><s:Body><s:Fault>"
+                            + "<faultcode>s:Client</faultcode><faultstring>Validation failed</faultstring></s:Fault></s:Body></s:Envelope>"));
+        }
         if (request.uri().equals("/isu/html")) {
             return response.status(503).header("Content-Type", "text/html").header("Content-Length", "19")
                     .sendString(Mono.just("<html>failed</html>"));
@@ -59,6 +64,12 @@ class GatewayErrorTest {
     @Test void preservesErrorsFromApplicationServices() {
         client.get().uri("/isu/json").exchange().expectStatus().isEqualTo(500)
                 .expectBody().json("{\"code\":\"INTERNAL_SERVER_ERROR\"}");
+    }
+
+    @Test void preservesSoapFaultStatusAndXmlBody() {
+        client.post().uri("/soap/isu").exchange().expectStatus().isEqualTo(500)
+                .expectHeader().contentTypeCompatibleWith("text/xml").expectBody(String.class)
+                .value(xml -> org.junit.jupiter.api.Assertions.assertTrue(xml.contains("<s:Fault>")));
     }
 
     @Test void routesRequestsAndHandlesUnmatchedPaths() {

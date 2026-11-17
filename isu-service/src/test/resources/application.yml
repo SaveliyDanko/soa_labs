@@ -2,7 +2,7 @@ spring:
   application:
     name: isu-service
   main:
-    web-application-type: reactive
+    web-application-type: servlet
   cloud:
     config:
       enabled: false

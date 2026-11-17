@@ -1,0 +1,29 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: study-groups-service
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: study-groups-service
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: isu-service
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: isu-service
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: isu-rest-adapter
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: isu-rest-adapter

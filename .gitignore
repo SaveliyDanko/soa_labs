@@ -33,3 +33,6 @@ Thumbs.db
 .env
 .env.*
 !.env.example
+
+# Local Kubernetes credentials and runtime files
+.local/

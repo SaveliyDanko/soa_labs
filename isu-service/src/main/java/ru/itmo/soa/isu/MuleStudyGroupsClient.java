@@ -20,11 +20,11 @@ import ru.itmo.soa.model.ApiModels.StudyGroup;
 import ru.itmo.soa.model.ApiModels.StudyGroupRequest;
 
 @Component
-public class GatewayStudyGroupsClient implements StudyGroupsClient {
+public class MuleStudyGroupsClient implements StudyGroupsClient {
     private final WebClient client;
 
-    public GatewayStudyGroupsClient(WebClient.Builder builder,
-                                    @Value("${study-groups.gateway-url}") String baseUrl) {
+    public MuleStudyGroupsClient(WebClient.Builder builder,
+                                  @Value("${study-groups.esb-url}") String baseUrl) {
         HttpClient http = HttpClient.create().disableRetry(true).option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 4000)
                 .responseTimeout(Duration.ofSeconds(12));
         this.client = builder.clientConnector(new ReactorClientHttpConnector(http))

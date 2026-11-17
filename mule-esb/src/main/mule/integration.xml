@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns="http://www.mulesoft.org/schema/mule/core"
+      xmlns:http="http://www.mulesoft.org/schema/mule/http"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+                          http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd">
+    <configuration-properties file="application.properties"/>
+    <http:listener-config name="inbound"><http:listener-connection host="0.0.0.0" port="${HTTP_PORT}"/></http:listener-config>
+    <http:request-config name="soap"><http:request-connection host="${SOAP_HOST}" port="${SOAP_PORT}"/></http:request-config>
+    <http:request-config name="groups"><http:request-connection host="${GATEWAY_HOST}" port="${GATEWAY_PORT}"/></http:request-config>
+
+    <flow name="health">
+        <http:listener config-ref="inbound" path="/health" allowedMethods="GET"/>
+        <set-payload value='#[output application/json --- {status: "UP"}]'/>
+    </flow>
+
+    <!-- SOAP 1.1 envelopes and typed faults pass through unchanged, including HTTP 500. -->
+    <flow name="isu-soap-proxy">
+        <http:listener config-ref="inbound" path="/soap/isu" allowedMethods="GET,POST">
+            <http:response statusCode="#[attributes.statusCode default 200]">
+                <http:headers>#[{'Content-Type': attributes.headers.'content-type' default 'text/xml',
+                    'X-ESB': 'mule', 'X-ESB-Flow': 'isu-soap',
+                    'X-SOAP-Instance': attributes.headers.'x-soap-instance' default ''}]</http:headers>
+            </http:response>
+            <http:error-response statusCode="503"/>
+        </http:listener>
+        <http:request config-ref="soap" method="#[attributes.method]" path="/soap/isu" responseTimeout="40000">
+            <http:headers>#[{'Content-Type': attributes.headers.'content-type' default 'text/xml',
+                'SOAPAction': attributes.headers.soapaction default ''}]</http:headers>
+            <http:query-params>#[attributes.queryParams]</http:query-params>
+            <http:response-validator><http:success-status-code-validator values="200..599"/></http:response-validator>
+        </http:request>
+    </flow>
+
+    <!-- ISU cannot reach Study Groups directly: all its CRUD calls traverse this flow. -->
+    <flow name="study-groups-rest-proxy">
+        <http:listener config-ref="inbound" path="/api/study-groups/*" allowedMethods="GET,PUT,DELETE">
+            <http:response statusCode="#[attributes.statusCode default 200]">
+                <http:headers>#[{'Content-Type': attributes.headers.'content-type' default 'application/json',
+                    'X-ESB': 'mule', 'X-ESB-Flow': 'study-groups-rest'}]</http:headers>
+            </http:response>
+            <http:error-response statusCode="503"/>
+        </http:listener>
+        <http:request config-ref="groups" method="#[attributes.method]" path="#[attributes.requestPath]" responseTimeout="12000">
+            <http:headers>#[{'Content-Type': 'application/json', 'Accept': 'application/json'}]</http:headers>
+            <http:query-params>#[attributes.queryParams]</http:query-params>
+            <http:response-validator><http:success-status-code-validator values="200..599"/></http:response-validator>
+        </http:request>
+    </flow>
+</mule>

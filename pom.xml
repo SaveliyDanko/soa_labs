@@ -11,14 +11,16 @@
     <artifactId>soa-lab-services</artifactId>
     <version>3.0.0</version>
     <packaging>pom</packaging>
-    <name>SOA lab 3 — Spring Cloud microservices</name>
+    <name>SOA lab 4 — SOAP, Mule ESB and Kubernetes</name>
     <modules>
         <module>common-api</module>
         <module>config-service</module>
         <module>discovery-service</module>
         <module>api-gateway</module>
         <module>study-groups-service</module>
+        <module>isu-soap-contract</module>
         <module>isu-service</module>
+        <module>isu-rest-adapter</module>
     </modules>
     <properties>
         <java.version>11</java.version>
@@ -26,6 +28,7 @@
         <spring-cloud.version>2021.0.9</spring-cloud.version>
         <junit-jupiter.version>5.12.2</junit-jupiter.version>
         <sentry.version>8.61.1</sentry.version>
+        <cxf.version>3.6.13</cxf.version>
         <swagger.ui.version>5.18.2</swagger.ui.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>

@@ -3,8 +3,12 @@
     <modelVersion>4.0.0</modelVersion>
     <parent><groupId>ru.itmo.soa</groupId><artifactId>soa-lab-services</artifactId><version>3.0.0</version></parent>
     <artifactId>isu-service</artifactId>
+    <packaging>war</packaging>
     <dependencies>
         <dependency><groupId>ru.itmo.soa</groupId><artifactId>common-api</artifactId></dependency>
+        <dependency><groupId>ru.itmo.soa</groupId><artifactId>isu-soap-contract</artifactId><version>${project.version}</version></dependency>
+        <dependency><groupId>org.apache.cxf</groupId><artifactId>cxf-spring-boot-starter-jaxws</artifactId><version>${cxf.version}</version></dependency>
+        <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-tomcat</artifactId><scope>provided</scope></dependency>
         <dependency><groupId>org.springframework.cloud</groupId><artifactId>spring-cloud-starter-config</artifactId></dependency>
         <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-actuator</artifactId></dependency>
         <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-test</artifactId><scope>test</scope><exclusions><exclusion><groupId>org.junit.vintage</groupId><artifactId>junit-vintage-engine</artifactId></exclusion></exclusions></dependency>

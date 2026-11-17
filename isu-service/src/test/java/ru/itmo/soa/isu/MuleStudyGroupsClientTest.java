@@ -14,7 +14,7 @@ import ru.itmo.soa.error.ApiException;
 import ru.itmo.soa.model.ApiModels.*;
 import static org.junit.jupiter.api.Assertions.*;
 
-class GatewayStudyGroupsClientTest {
+class MuleStudyGroupsClientTest {
     private static final AtomicInteger requests = new AtomicInteger();
     private static final DisposableServer server = HttpServer.create().host("127.0.0.1").port(0).handle((request, response) -> {
         requests.incrementAndGet();
@@ -37,15 +37,15 @@ class GatewayStudyGroupsClientTest {
         }
         return response.header("Content-Type", "application/json").sendString(Mono.just("{\"id\":7,\"name\":\"Math\"}"));
     }).bindNow();
-    private GatewayStudyGroupsClient client;
+    private MuleStudyGroupsClient client;
 
     @BeforeEach void setup() {
         requests.set(0);
-        client = new GatewayStudyGroupsClient(WebClient.builder(), "http://127.0.0.1:" + server.port());
+        client = new MuleStudyGroupsClient(WebClient.builder(), "http://127.0.0.1:" + server.port());
     }
     @AfterAll static void close() { server.disposeNow(); }
 
-    @Test void sendsRequestsLazilyThroughGateway() {
+    @Test void sendsRequestsLazilyThroughMule() {
         Mono<Void> deletion = client.delete(7);
         assertEquals(0, requests.get());
         StepVerifier.create(deletion).verifyComplete();
@@ -71,7 +71,7 @@ class GatewayStudyGroupsClientTest {
     }
 
     @Test void reportsConnectionFailureInRussian() {
-        var unavailable = new GatewayStudyGroupsClient(WebClient.builder(), "http://127.0.0.1:1");
+        var unavailable = new MuleStudyGroupsClient(WebClient.builder(), "http://127.0.0.1:1");
         StepVerifier.create(unavailable.get(7)).expectErrorSatisfies(failure -> {
             assertInstanceOf(ApiException.class, failure);
             assertEquals("Сервис учебных групп временно недоступен", failure.getMessage());
@@ -80,7 +80,7 @@ class GatewayStudyGroupsClientTest {
     }
 
     @Test void timesOutWithoutBlockingTheCaller() {
-        var slow = new GatewayStudyGroupsClient(WebClient.builder().exchangeFunction(request -> Mono.never()),
+        var slow = new MuleStudyGroupsClient(WebClient.builder().exchangeFunction(request -> Mono.never()),
                 "http://gateway");
         StepVerifier.withVirtualTime(() -> slow.get(7)).thenAwait(Duration.ofSeconds(15))
                 .expectErrorMatches(failure -> failure instanceof ApiException

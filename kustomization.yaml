@@ -1,0 +1,26 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: soa-lab4
+resources:
+  - k8s/namespace.yaml
+  - k8s/postgres.yaml
+  - k8s/apps.yaml
+  - k8s/availability.yaml
+configMapGenerator:
+  - name: spring-config
+    files:
+      - config-repo/application.yml
+      - config-repo/api-gateway.yml
+      - config-repo/study-groups-service.yml
+      - config-repo/isu-service.yml
+      - config-repo/isu-rest-adapter.yml
+  - name: client-config
+    files:
+      - nginx.conf=k8s/client.conf
+  - name: postgres-schema
+    files:
+      - schema.sql=study-groups-service/src/main/resources/schema.sql
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: soa-lab4
+    includeSelectors: false

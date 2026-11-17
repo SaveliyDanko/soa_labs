@@ -1,5 +1,5 @@
 server:
-  port: 8281
+  port: 8080
 study-groups:
-  # Даже внутренний вызов ISU проходит через Spring Cloud Gateway, Eureka и Spring Cloud LoadBalancer.
-  gateway-url: ${GATEWAY_URL:http://localhost:8080}
+  # SOAP ISU -> Mule ESB -> Gateway -> неизменённый Study Groups.
+  esb-url: ${MULE_ESB_URL:http://localhost:8081}

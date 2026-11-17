@@ -2,6 +2,11 @@ spring:
   application:
     name: isu-service
   main:
-    web-application-type: reactive
+    web-application-type: servlet
   config:
     import: configserver:${CONFIG_SERVER_URL:http://localhost:8888}
+cxf:
+  path: /soap
+  servlet:
+    init:
+      hide-service-list-page: true

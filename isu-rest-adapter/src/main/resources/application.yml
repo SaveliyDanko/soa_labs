@@ -1,0 +1,7 @@
+spring:
+  application:
+    name: isu-rest-adapter
+  main:
+    web-application-type: reactive
+  config:
+    import: configserver:${CONFIG_SERVER_URL:http://localhost:8888}

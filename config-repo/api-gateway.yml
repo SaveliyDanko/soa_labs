@@ -27,6 +27,14 @@ spring:
           predicates:
             - Path=/api/study-groups/**,/openapi.yaml,/swagger-ui.html,/webjars/**
         - id: isu
-          uri: ${ISU_BALANCER_URL:http://localhost:9000}
+          uri: ${ISU_REST_URL:http://localhost:8281}
+          metadata:
+            response-timeout: 50000
           predicates:
             - Path=/isu/**
+        - id: isu-soap
+          uri: ${MULE_ESB_URL:http://localhost:8081}
+          metadata:
+            response-timeout: 50000
+          predicates:
+            - Path=/soap/isu

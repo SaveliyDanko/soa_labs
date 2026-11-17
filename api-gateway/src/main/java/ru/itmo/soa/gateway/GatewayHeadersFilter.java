@@ -28,8 +28,12 @@ public class GatewayHeadersFilter implements GlobalFilter, Ordered {
                 MediaType type = getHeaders().getContentType();
                 boolean json = type != null && (MediaType.APPLICATION_JSON.isCompatibleWith(type)
                         || type.getSubtype().endsWith("+json"));
-                // HAProxy can return HTML when every ISU replica is unavailable.
-                if (getRawStatusCode() != null && getRawStatusCode() >= 500 && !json) {
+                boolean soap = exchange.getRequest().getPath().value().equals("/soap/isu") && type != null
+                        && (MediaType.TEXT_XML.isCompatibleWith(type) || MediaType.APPLICATION_XML.isCompatibleWith(type)
+                            || "soap+xml".equals(type.getSubtype()));
+                // Upstream proxies can return HTML when a backend is unavailable.
+                // SOAP Faults intentionally use HTTP 500 and must reach SOAP consumers unchanged.
+                if (getRawStatusCode() != null && getRawStatusCode() >= 500 && !json && !soap) {
                     return Flux.from(body).doOnNext(DataBufferUtils::release).then(errors.write(exchange, getDelegate()));
                 }
                 return super.writeWith(body);

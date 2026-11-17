@@ -1,0 +1,4 @@
+server:
+  port: 8281
+isu:
+  soap-url: ${ISU_SOAP_URL:http://localhost:8081/soap/isu}
